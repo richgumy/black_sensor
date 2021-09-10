@@ -74,43 +74,43 @@ void loop() {
   if (SW_state == 0) {
     writeSPI(Res0SW);
     delay(10); // wait for MUX to switch over
-    float R0_val = analogRead(StrainSensePin);
-    R0 = (R0_val/ADC_const) / I_src; // R = V_meas/I_src
-    // Plot the raw Res0 sensor reading
-    Serial.print("R0: "); Serial.print(R0_val); Serial.print("  ");
+    R0 = read_resistance();
     SW_state++;
   }
   else if (SW_state == 1) {
     writeSPI(Res1SW);
     delay(10); // wait for MUX to switch over
-    float R1_val = analogRead(StrainSensePin);
-    R1 = (R1_val/ADC_const) / I_src; // R = V_meas/I_src
-    // Plot the raw Res1 sensor reading
-    Serial.print("R1: "); Serial.print(R1_val); Serial.print("  ");
+    R1 = read_resistance();
     SW_state++;
   }
   else if (SW_state == 2) {
     writeSPI(Res2SW);
     delay(10); // wait for MUX to switch over
-    float R2_val = analogRead(StrainSensePin);
-    R2 = (R2_val/ADC_const) / I_src; // R = V_meas/I_src
-    // Plot the raw Res1 sensor reading
-    Serial.print("R2: "); Serial.print(R2_val); Serial.print("  ");
-    Serial.println("V");
+    R2 = read_resistance();
     SW_state = 0;
+    plot_R_vals(R0, R1, R2);
   }
   else {
     Serial.println("What's cooking here..."); // Error state
   }
-  delay(20);
-
-  // Serial.println(SW_state);
-
-  // Show plot 3 R_vals data points
-  
+  delay(20);  
 }
 
-void write_data()
+float read_resistance(void){
+  // Calculate resistance value from measured voltage and known current source
+  float R_val = analogRead(StrainSensePin);
+  return (R_val/ADC_const) / I_src; // R = V_meas/I_src
+}
+
+void plot_R_vals(float R0,float R1,float R2){
+  // Plots 3 values in parallel when arduino plotter open
+  // >> Could generalise this for any number of simulataneous data points
+  Serial.print("R0: "); Serial.print(R0); Serial.print("  ");
+  Serial.print("R1: "); Serial.print(R1); Serial.print("  ");
+  Serial.print("R2: "); Serial.print(R2); Serial.print("  ");
+  Serial.println("V");
+  return 0;
+}
 
 
 void writeSPI(byte thisValue) {

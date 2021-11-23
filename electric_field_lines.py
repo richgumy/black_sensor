@@ -12,6 +12,8 @@ import numpy as np
 from scipy.integrate import ode as ode
 from matplotlib import cm
 from itertools import product
+from scipy import ndimage
+from skimage.morphology import medial_axis
 
 class charge:
     def __init__(self, q, pos):
@@ -74,16 +76,15 @@ def gen_electrode_loc(d_grid, d_edge, d_el, num_el):
         
     return el_list
 
-plt.figure(figsize=(11, 9),facecolor="w")
-
 # Define area and electrodes
 d_grid = 50
 n_el = 4
 d_edge, d_el = electrode_dims(n_el, d_grid)
 el_list = gen_electrode_loc(d_grid, d_edge, d_el, n_el)
 
+# fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
-for i in range(2):
+for i in range(len(el_list)):
     # charges and positions
     if i != 15: # move the dipole (current source successively around the 16 electrode pairs)
         charges=[ charge(1, el_list[i]), charge(-1, el_list[i+1]) ]
@@ -150,40 +151,48 @@ for i in range(2):
     print("Electrode potentials:",el_pots)
     
     iso_line  = np.empty((0,2))
+    vvs_bin = np.zeros((300,300))
     for el_pot in el_pots:
         for i in range(len(vvs)):
-            if abs(vvs[i] - el_pot) < 0.0001:
+            xi = i % numcalcv
+            yi = i // numcalcv
+            vvs_bin[xi][yi] = abs(vvs[i] - el_pot) < 0.001
+            if abs(vvs[i] - el_pot) < 0.001:
                 iso_line = np.append(iso_line,np.array([[xxs[i],yys[i]]]),axis=0)
+    skel, distance = medial_axis(vvs_bin, return_distance=True)
         
-    # plt.figure(figsize=(10, 8),facecolor="w")
-    
+    fig2, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+    # Plot bin isoblob and isoline 
+    ax1.imshow(vvs_bin+skel, cmap=plt.cm.gray, interpolation='nearest')
+
     # plot electrode isopotential lines
     iso_line_t = np.transpose(iso_line)
-    plt.plot(iso_line_t[0],iso_line_t[1], "b.")
-    
+    ax2.plot(iso_line_t[0],iso_line_t[1], "b.")
+
     # plot field line
     # for x, y in zip(xs,ys):
-    #     plt.plot(x, y, color="k")
+    #     ax2.plot(x, y, color="k")
         
     # plot electrode points
     for el in el_list:
-        plt.plot(el[0], el[1], 'ko', ms=4)
+        ax2.plot(el[0], el[1], 'ko', ms=4)
     
     # plot point charges
     for C in charges:
         if C.q>0:
-            plt.plot(C.pos[0], C.pos[1], 'ro', ms=8*np.sqrt(C.q))
+            ax2.plot(C.pos[0], C.pos[1], 'ro', ms=8*np.sqrt(C.q))
         if C.q<0:
-            plt.plot(C.pos[0], C.pos[1], 'bo', ms=8*np.sqrt(-C.q))
+            ax2.plot(C.pos[0], C.pos[1], 'bo', ms=8*np.sqrt(-C.q))
     
     # plot electric potential
-    plt.tricontour(xxs,yys,vvs,300,colors="0.3") # tricontour likely uses a marching squares algorithm
-    # plt.tricontourf(xxs,yys,vvs,100,cmap=cm.jet)
-    plt.xlabel('$x$')
-    plt.ylabel('$y$')
-    plt.xlim(x0, x1)
-    plt.ylim(y0, y1)
-    # plt.axes().set_aspect('equal','datalim')
+    ax2.tricontour(xxs,yys,vvs,300,colors="0.3") # tricontour likely uses a marching squares algorithm
+    # ax2.tricontourf(xxs,yys,vvs,100,cmap=cm.jet)
+    # ax2.xlabel('$x$')
+    # ax2.ylabel('$y$')
+    # ax2.xlim(x0, x1)
+    # ax2.ylim(y0, y1)
+    # ax2.axes().set_aspect('equal','datalim')
     plt.show()
 
 cbar = plt.colorbar()

@@ -19,6 +19,15 @@
 
 #include "sdkconfig.h"
 
+#define V_OFFSET 1663 // Virtual ground for ADC.
+#define NUM_ELECS 16 // Number of electrodes in ERT setup
+
+// ERT modes
+#define CALIBRATE 0
+#define NEIGHBOUR 1
+#define TRANSVERSE 2
+static const uint8_t ert_mode = CALIBRATE;
+
 // MUX
 #define EN_MUX_ISRC 5
 #define EN_MUX_VGND 17
@@ -41,13 +50,26 @@ static const adc_bits_width_t width = ADC_WIDTH_BIT_13;
 static const adc_atten_t atten = ADC_ATTEN_DB_11;
 static const adc_unit_t unit = ADC_UNIT_1;
 
+
 // Electrodes
 static uint8_t isrc_elec = 0;
-static uint8_t isnk_elec = 4;
+static uint8_t isnk_elec = 3;
 static uint8_t vp_elec = 1;
 static uint8_t vn_elec = 2;
-static const uint8_t num_elecs = 5;
+static const uint8_t max_elecs = 128; // Maximum number of electrodes
+static uint8_t cycle_dir = 1; // Increment through electrode values
 
+// Measurement structs
+struct Vmeas {
+    uint8_t vp_elec;
+    uint8_t vn_elec;
+    uint32_t voltage;
+};
+struct Cycle_meas {
+    uint8_t isrc_elec;
+    uint8_t isnk_elec;
+    struct Vmeas vm[NUM_ELECS];
+};
 
 void setup_all_gpio() {
     gpio_config_t io_conf;
@@ -134,22 +156,10 @@ void send_spi_cmd(uint8_t data[]) {
 	// ESP_LOGD(tag, "<< test_spi_task");
 }
 
-// uint8_t* sel_mux(uint8_t isnk_elec, uint8_t isrc_elec, uint8_t vn_elec, uint8_t vp_elec) {
-//     // input:a,b,c,d get turned into a hex value in the format 0xab and 0xcd
-//     if ((isnk_elec > 15) || (isrc_elec > 15) || (vn_elec > 15) || (vp_elec > 15)){
-//         printf("MUX array index out of bounds\n");
-//     }
-//     uint8_t data[2];
-//     data[0] = (isnk_elec << 4) + isrc_elec;
-//     data[1] = (vn_elec << 4) + vp_elec;
-//     printf("0xab = 0x%X, 0xcd = 0x%X\n",data[0],data[1]);
-//     return data;
-// }
-
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
-    // Inputs elec_1 and elec2 get turned into a hex value in the format 0x(elec_1)(elec_2)
+    // Inputs elec_1 and elec2 get turned into a value in the format 0x(elec_1)(elec_2)
     if ((elec_1 > 15) || (elec_2 > 15)){
-        printf("MUX array index out of bounds\n");
+        printf("MUX array index out of bounds (i.e. %d or %d)\n", elec_1, elec_2);
     }
     uint8_t data;
     data = (elec_1 << 4) + elec_2;
@@ -159,11 +169,23 @@ uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
 uint8_t iter_elec(uint8_t increment, uint8_t elec_val, uint8_t num_elecs) {
     // Rolls up or down through electrode values
     if (increment) {
-        return elec_val++ < num_elecs? elec_val : 0;
+        return elec_val++ < num_elecs-1? elec_val : 0;
     }
     else {
-        return elec_val-- >= 0? elec_val : num_elecs;
+        return elec_val-- < (max_elecs+1) ? elec_val : num_elecs-1;
     }
+}
+
+// uint8_t calibrate_elec(uint8_t elec_vn, uint8_t elec_vp, uint8_t elec_vn, uint8_t elec_vp...)
+
+void printline_csv(struct Cycle_meas measurements, uint8_t num_elecs)
+// Prints out csv formatted measurements
+{
+    printf("%d,%d", measurements.isrc_elec, measurements.isnk_elec);
+    for (int i=0; i<num_elecs; i++){
+        printf(",%d", measurements.vm[i].voltage);
+    }
+    printf("\n");
 }
 
 static void check_efuse(void)
@@ -195,8 +217,14 @@ static void check_efuse(void)
 #endif
 }
 
+
 void app_main(void)
-{
+{   
+    /*
+    SETUP
+    */
+    esp_log_level_set("*", ESP_LOG_ERROR); 
+
     //Check if Two Point or Vref are burned into eFuse
     check_efuse();
 
@@ -216,33 +244,82 @@ void app_main(void)
     adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
     esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars); // Characterised using DEFAULT_VREF (factory?)
 
+    // Assign initial mux electrode values
+    uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+    uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
+    uint8_t elec_index[2] = {i_elecs, v_elecs};
 
-    //Continuously sample ADC1
+    /*
+    MAIN LOOP
+    Continuously cycles through electrodes and sample
+    */
     while (1) {
-        // Assign mux'd electrode values
-        uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
-        uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
-        uint8_t data[2] = {i_elecs, v_elecs};
-        printf("check1");
-        send_spi_cmd(data);
+        // Store all voltage measurements in cycle_read
+        struct Cycle_meas cycle_read;
+        cycle_read.isrc_elec = isrc_elec;
+        cycle_read.isnk_elec = isnk_elec;
 
-        // Cycle through electrodes
-        vp_elec = iter_elec(1, vp_elec, num_elecs);
-        vn_elec = iter_elec(1, vn_elec, num_elecs);
+        // Cycle through each voltage measurement
+        for (int elec_iter=0 ; elec_iter<NUM_ELECS ; elec_iter++)
+        {
+            // Store data in v_read
+            struct Vmeas v_read;
+            v_read.vp_elec = vp_elec;
+            v_read.vn_elec = vn_elec;
 
-        uint32_t adc_reading = 0;
+            
+            // Send SPI mux cmd
+            printf("11111111111"); // Need this else a reboot error occurs? 
+            send_spi_cmd(elec_index);
 
-        //Multisampling
-        for (int i = 0; i < NO_OF_SAMPLES; i++) {
-            adc_reading += adc1_get_raw((adc1_channel_t)channel);
+            // Cycle through voltage measurement electrodes
+            vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
+            vn_elec = iter_elec(cycle_dir, vn_elec, NUM_ELECS);
+            v_elecs = sel_mux_frmt(vn_elec, vp_elec);
+            elec_index[1] = v_elecs;
+
+            if (ert_mode == CALIBRATE) {
+                isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
+                isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
+                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+                elec_index[0] = i_elecs;
+            }
+
+            //Multisampling
+            uint32_t adc_reading = 0;
+            for (int i = 0; i < NO_OF_SAMPLES; i++) {
+                adc_reading += adc1_get_raw((adc1_channel_t)channel); // ADC operates @ 6kHz
+            }
+            adc_reading /= NO_OF_SAMPLES;
+
+            //Convert adc_reading to voltage in mV
+            v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
+            cycle_read.vm[elec_iter] = v_read;
+            
+            // Clear screen
+            // for (int i=0 ; i<64 ; i++){
+            //     printf("\b"); 
+            // }
+
+            // Print buffer
+            // for (int i=0 ; i < NUM_ELECS ; i++) {
+            //     printf(" v%X%X:%d",cycle_read.vm[i].vn_elec, cycle_read.vm[i].vp_elec, cycle_read.vm[i].voltage);
+            // }
+            // printf("\n");
+
+            // printf("Raw: %d\tVoltage(%d-%d): %dmV\n", adc_reading, vn_elec, vp_elec, voltage - V_OFFSET);
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
-        adc_reading /= NO_OF_SAMPLES;
 
-        //Convert adc_reading to voltage in mV
-        uint32_t voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
-        uint32_t v_offset = 1663;
-        printf("Raw: %d\tVoltage(%d-%d): %dmV\n", adc_reading, vn_elec, vp_elec, voltage - v_offset);
-        vTaskDelay(pdMS_TO_TICKS(500));
+        if (ert_mode == NEIGHBOUR) {
+            // Cycle through current source electrodes
+            isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
+            isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
+            i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+            elec_index[0] = i_elecs;
+        }
+        printf(",");
+        printline_csv(cycle_read, NUM_ELECS);
     }
     
 }

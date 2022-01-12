@@ -48,7 +48,7 @@ def V_total(x, y, charges):
     return V
 
 def electrode_dims(num_el, grid_x):
-    # Function that returns th location for all electrode dimensions given 
+    # Function that returns the location for all electrode dimensions given 
     #   num of electrodes on each side and size of square grid sides
     edge_dist = grid_x / ((num_el-1)*np.sqrt(2) + 2)
     delta_el = np.sqrt(2) * edge_dist

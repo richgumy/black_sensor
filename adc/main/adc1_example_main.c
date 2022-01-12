@@ -24,9 +24,11 @@
 
 // ERT modes
 #define CALIBRATE 0
-#define NEIGHBOUR 1
-#define TRANSVERSE 2
-static const uint8_t ert_mode = CALIBRATE;
+#define ADJACENT 1
+#define PSEUDO_POLAR 2
+#define PP_PP 2 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
+
+static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
 // MUX
 #define EN_MUX_ISRC 5
@@ -42,7 +44,7 @@ static const uint8_t ert_mode = CALIBRATE;
 static esp_adc_cal_characteristics_t *adc_chars;
 #if CONFIG_IDF_TARGET_ESP32
 static const adc_channel_t channel = ADC_CHANNEL_0;     //GPIO34 if ADC1, GPIO14 if ADC2 for CHANNEL6
-static const adc_bits_width_t width = ADC_WIDTH_BIT_12;
+static const adc_bits_width_t width = ADC_WIDTH_BIT_12; 
 #elif CONFIG_IDF_TARGET_ESP32S2
 static const adc_channel_t channel = ADC_CHANNEL_0;     // GPIO7 if ADC1, GPIO17 if ADC2 for CHANNEL6
 static const adc_bits_width_t width = ADC_WIDTH_BIT_13;
@@ -52,14 +54,15 @@ static const adc_unit_t unit = ADC_UNIT_1;
 
 
 // Electrodes
-static uint8_t isrc_elec = 0;
-static uint8_t isnk_elec = 3;
-static uint8_t vp_elec = 1;
-static uint8_t vn_elec = 2;
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
-static uint8_t cycle_dir = 1; // Increment through electrode values
+static int8_t cycle_dir = 1; // Increment through electrode values
+static uint8_t isrc_elec;
+static uint8_t isnk_elec;
+static uint8_t vp_elec;
+static uint8_t vn_elec;
 
-// Measurement structs
+
+// Electrical measurement structures
 struct Vmeas {
     uint8_t vp_elec;
     uint8_t vn_elec;
@@ -70,6 +73,27 @@ struct Cycle_meas {
     uint8_t isnk_elec;
     struct Vmeas vm[NUM_ELECS];
 };
+
+void init_ERT (void) {
+    #if (ert_mode == CALIBRATE || ert_mode == ADJACENT)
+        isrc_elec = 1;
+        isnk_elec = 2;
+        vp_elec = 1;
+        vn_elec = 2;
+    #elif (ert_mode == PSEUDO_POLAR)
+        isrc_elec = 0;
+        isnk_elec = 7;
+        vp_elec = 0;
+        vn_elec = 1;
+    #elif (ert_mode == PP_PP)
+        isrc_elec = 0;
+        isnk_elec = 7;
+        vp_elec = 0;
+        vn_elec = 7;
+    #else
+    #error "INVALID ELECTRODE DRIVE MODE"
+    #endif
+}
 
 void setup_all_gpio() {
     gpio_config_t io_conf;
@@ -110,7 +134,7 @@ void send_spi_cmd(uint8_t data[]) {
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
 	dev_config.clock_speed_hz = 10000;
-	dev_config.spics_io_num = 15;
+	dev_config.spics_io_num = 15; // CS pin = io15
 	dev_config.flags = 0;
 	dev_config.queue_size = 1;
 	dev_config.pre_cb = NULL;
@@ -166,13 +190,16 @@ uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
     return data;
 }
 
-uint8_t iter_elec(uint8_t increment, uint8_t elec_val, uint8_t num_elecs) {
-    // Rolls up or down through electrode values
-    if (increment) {
+uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
+    // Rolls up or down through electrode values. Increment = 1, decrement = 0, none = -1
+    if (increment > 0) {
         return elec_val++ < num_elecs-1? elec_val : 0;
     }
-    else {
+    if (increment == 0) {
         return elec_val-- < (max_elecs+1) ? elec_val : num_elecs-1;
+    }
+    else {
+        return elec_val;
     }
 }
 
@@ -225,7 +252,9 @@ void app_main(void)
     */
     esp_log_level_set("*", ESP_LOG_ERROR); 
 
-    //Check if Two Point or Vref are burned into eFuse
+    init_ERT();
+
+    //Check if Two Point or Vref are burned into eFuse for ADC
     check_efuse();
 
     //Configure GPIO
@@ -251,7 +280,7 @@ void app_main(void)
 
     /*
     MAIN LOOP
-    Continuously cycles through electrodes and sample
+    Continuously cycles through electrodes pattern
     */
     while (1) {
         // Store all voltage measurements in cycle_read
@@ -266,24 +295,10 @@ void app_main(void)
             struct Vmeas v_read;
             v_read.vp_elec = vp_elec;
             v_read.vn_elec = vn_elec;
-
             
             // Send SPI mux cmd
-            printf("11111111111"); // Need this else a reboot error occurs? 
+            // printf("11111111111"); // Need this else a reboot error occurs? 
             send_spi_cmd(elec_index);
-
-            // Cycle through voltage measurement electrodes
-            vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
-            vn_elec = iter_elec(cycle_dir, vn_elec, NUM_ELECS);
-            v_elecs = sel_mux_frmt(vn_elec, vp_elec);
-            elec_index[1] = v_elecs;
-
-            if (ert_mode == CALIBRATE) {
-                isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
-                isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
-                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
-                elec_index[0] = i_elecs;
-            }
 
             //Multisampling
             uint32_t adc_reading = 0;
@@ -294,7 +309,25 @@ void app_main(void)
 
             //Convert adc_reading to voltage in mV
             v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
-            cycle_read.vm[elec_iter] = v_read;
+            cycle_read.vm[vp_elec] = v_read;
+
+            // Cycle through voltage measurement electrodes
+            vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
+            vn_elec = iter_elec(cycle_dir, vn_elec, NUM_ELECS);   // DEBUGGING ELECTRODE READINGS HERE DELETE THIS COMMENT AND CHANGE CODE!!
+            // vn_elec = isnk_elec;                         // DEBUGGING ELECTRODE READINGS HERE DELETE THIS COMMENT AND CHANGE CODE!!
+            v_elecs = sel_mux_frmt(vn_elec, vp_elec);
+            elec_index[1] = v_elecs;
+
+            if (ert_mode == CALIBRATE) {
+                // Calibration mode: measure impedance between each electrode
+                isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
+                isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
+                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+                elec_index[0] = i_elecs;
+            }
+
+            // printf(vp_elec,vn_elec,isrc_elec,isnk_elec);
+            printf("%d:vp,%d:vn,%d:isrc,%d:isnk",vp_elec,vn_elec,isrc_elec,isnk_elec);
             
             // Clear screen
             // for (int i=0 ; i<64 ; i++){
@@ -311,15 +344,18 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
-        if (ert_mode == NEIGHBOUR) {
-            // Cycle through current source electrodes
+        printf(",");
+        printline_csv(cycle_read, NUM_ELECS);
+        
+        if (ert_mode == ADJACENT) {
+            // Adjacent mode: cycle through current source electrodes
             isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
             isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
             i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
             elec_index[0] = i_elecs;
+            // printf("11111111111"); // Need this else a reboot error occurs?
+            // send_spi_cmd(elec_index);
         }
-        printf(",");
-        printline_csv(cycle_read, NUM_ELECS);
     }
     
 }

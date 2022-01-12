@@ -7,6 +7,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -76,8 +77,8 @@ struct Cycle_meas {
 
 void init_ERT (void) {
     #if (ert_mode == CALIBRATE || ert_mode == ADJACENT)
-        isrc_elec = 1;
-        isnk_elec = 2;
+        isrc_elec = 2;
+        isnk_elec = 3;
         vp_elec = 1;
         vn_elec = 2;
     #elif (ert_mode == PSEUDO_POLAR)
@@ -115,6 +116,7 @@ void send_spi_cmd(uint8_t data[]) {
 	// ESP_LOGD(tag, ">> test_spi_task");
 
 	spi_bus_config_t bus_config;
+    memset(&bus_config, 0, sizeof(spi_bus_config_t));
 	bus_config.sclk_io_num = 14; // CLK
 	bus_config.mosi_io_num = 13; // MOSI
 	bus_config.miso_io_num = -1; // MISO
@@ -134,11 +136,12 @@ void send_spi_cmd(uint8_t data[]) {
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
 	dev_config.clock_speed_hz = 10000;
+    dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = 15; // CS pin = io15
 	dev_config.flags = 0;
 	dev_config.queue_size = 1;
-	dev_config.pre_cb = NULL;
-	dev_config.post_cb = NULL;
+	dev_config.pre_cb = 0;
+	dev_config.post_cb = 0;
 	// ESP_LOGI(tag, "... Adding device bus.");
 	// ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &dev_config, &handle));
     spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
@@ -283,7 +286,7 @@ void app_main(void)
     Continuously cycles through electrodes pattern
     */
     while (1) {
-        // Store all voltage measurements in cycle_read
+        // Store all voltage measurements and electrodes used in cycle_read
         struct Cycle_meas cycle_read;
         cycle_read.isrc_elec = isrc_elec;
         cycle_read.isnk_elec = isnk_elec;
@@ -297,7 +300,6 @@ void app_main(void)
             v_read.vn_elec = vn_elec;
             
             // Send SPI mux cmd
-            // printf("11111111111"); // Need this else a reboot error occurs? 
             send_spi_cmd(elec_index);
 
             //Multisampling
@@ -310,6 +312,8 @@ void app_main(void)
             //Convert adc_reading to voltage in mV
             v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
             cycle_read.vm[vp_elec] = v_read;
+
+            printf("%d:vp,%d:vn,%d:isrc,%d:isnk\tvm=%d\n",vp_elec,vn_elec,isrc_elec,isnk_elec,v_read.voltage);
 
             // Cycle through voltage measurement electrodes
             vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
@@ -325,9 +329,6 @@ void app_main(void)
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
             }
-
-            // printf(vp_elec,vn_elec,isrc_elec,isnk_elec);
-            printf("%d:vp,%d:vn,%d:isrc,%d:isnk",vp_elec,vn_elec,isrc_elec,isnk_elec);
             
             // Clear screen
             // for (int i=0 ; i<64 ; i++){
@@ -344,7 +345,6 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(10));
         }
 
-        printf(",");
         printline_csv(cycle_read, NUM_ELECS);
         
         if (ert_mode == ADJACENT) {

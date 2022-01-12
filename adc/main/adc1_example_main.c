@@ -313,7 +313,7 @@ void app_main(void)
             v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
             cycle_read.vm[vp_elec] = v_read;
 
-            printf("%d:vp,%d:vn,%d:isrc,%d:isnk\tvm=%d\n",vp_elec,vn_elec,isrc_elec,isnk_elec,v_read.voltage);
+            // printf("%d:vp,%d:vn,%d:isrc,%d:isnk\tvm=%d\n",vp_elec,vn_elec,isrc_elec,isnk_elec,v_read.voltage);
 
             // Cycle through voltage measurement electrodes
             vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
@@ -326,9 +326,9 @@ void app_main(void)
                 // Calibration mode: measure impedance between each electrode
                 isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
                 isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
-                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
-                elec_index[0] = i_elecs;
             }
+            i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+            elec_index[0] = i_elecs;
             
             // Clear screen
             // for (int i=0 ; i<64 ; i++){
@@ -353,7 +353,6 @@ void app_main(void)
             isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
             i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
             elec_index[0] = i_elecs;
-            // printf("11111111111"); // Need this else a reboot error occurs?
             // send_spi_cmd(elec_index);
         }
     }

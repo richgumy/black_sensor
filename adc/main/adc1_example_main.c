@@ -16,7 +16,7 @@ ERT program!
 
 #include "sdkconfig.h"
 
-#define V_OFFSET 1663 // Virtual ground for ADC.
+#define V_OFFSET 2429 // Virtual ground for ADC.
 #define NUM_ELECS 16 // Number of electrodes in ERT setup
 
 // ERT modes
@@ -51,7 +51,7 @@ static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MOD
 
 // ADC
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate?
-#define NO_OF_SAMPLES   1          //Multisampling
+#define NO_OF_SAMPLES   16          //Multisampling
     // Internal ADC params
 static esp_adc_cal_characteristics_t *adc_chars;
 #if CONFIG_IDF_TARGET_ESP32

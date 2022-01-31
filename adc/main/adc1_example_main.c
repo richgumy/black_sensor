@@ -26,7 +26,7 @@ ERT program!
 #define PSEUDO_POLAR 2
 #define PP_PP 3 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
 
-static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
+static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
 // GPIO
     // MUX
@@ -52,6 +52,8 @@ static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MOD
 // ADC
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate?
 #define NO_OF_SAMPLES   16          //Multisampling
+    // External SPI LTC2400CS8 ADC params
+#define MAX_24BIT_VAL   16777216
     // Internal ADC params
 static esp_adc_cal_characteristics_t *adc_chars;
 #if CONFIG_IDF_TARGET_ESP32
@@ -69,6 +71,7 @@ static gpio_num_t i2c_gpio_scl = 23;
 static uint32_t i2c_frequency = 400000;
 static i2c_port_t i2c_port = I2C_NUM_0;
 static uint8_t *ADC_chip_address = 0x4F;
+
 
 
 // Electrodes
@@ -92,10 +95,13 @@ struct Cycle_meas {
     struct Vmeas vm[NUM_ELECS];
 };
 
+// Error log tag
+// static const char TAG[] = "main";
+
 void init_ERT_mode (void) {
     #if (ert_mode == CALIBRATE || ert_mode == ADJACENT)
-        isrc_elec = 0;
-        isnk_elec = 1;
+        isrc_elec = 1;
+        isnk_elec = 0;
         vp_elec = 0;
         vn_elec = 1;
     #elif (ert_mode == PSEUDO_POLAR)
@@ -187,7 +193,7 @@ int do_i2cget_cmd(uint8_t *chipaddr)
 }
 
 void send_spi_cmd(uint8_t data[]) {
-	// ESP_LOGD(tag, ">> test_spi_task");
+    // Used to obtain send command to control MUXs through a cascaded shift register
 
 	spi_bus_config_t bus_config;
     memset(&bus_config, 0, sizeof(spi_bus_config_t));
@@ -196,8 +202,7 @@ void send_spi_cmd(uint8_t data[]) {
 	bus_config.miso_io_num = -1; // MISO
 	bus_config.quadwp_io_num = -1; // Not used
 	bus_config.quadhd_io_num = -1; // Not used
-	// ESP_LOGI(tag, "... Initializing bus.");
-	// ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &bus_config, 1));
+
     spi_bus_initialize(HSPI_HOST, &bus_config, 1);
 
 	spi_device_handle_t handle;
@@ -209,19 +214,16 @@ void send_spi_cmd(uint8_t data[]) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 10000;
+	dev_config.clock_speed_hz = 50000;
     dev_config.input_delay_ns = 0;
-	dev_config.spics_io_num = 15; // CS pin = io15
+	dev_config.spics_io_num = 15; // CS pin
 	dev_config.flags = 0;
 	dev_config.queue_size = 1;
 	dev_config.pre_cb = 0;
 	dev_config.post_cb = 0;
-	// ESP_LOGI(tag, "... Adding device bus.");
-	// ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &dev_config, &handle));
+
     spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
 
-
-	// char data[2];
 	spi_transaction_t trans_desc;
 	trans_desc.addr = 0;
 	trans_desc.cmd = 0;
@@ -231,30 +233,96 @@ void send_spi_cmd(uint8_t data[]) {
 	trans_desc.tx_buffer = data;
 	trans_desc.rx_buffer = data;
 
-    // The following messages map to s3,s2,s1,s0
-    // Mapping to PCB MUX component ref: U9(Vm+) = 4, U6(Vm-) = 3, U10(Isrc) = 2, U7(V_gnd) = 1
-	// data[0] = 0xFE; // 0xVGND,ISRC
-	// data[1] = 0x12; // 0xVm-,Vm+
-
-    // 
-    //s3,s2,s1,s0
-    // U9/ 0010 = 2 con-e1(6.6kohm) (should be electrode 2 (e2)??)
-    // U7
-    // 0001 = 1 con-e1(142ohm)
-
-	// ESP_LOGI(tag, "... Transmitting.");
-	// ESP_ERROR_CHECK(spi_device_transmit(handle, &trans_desc));
     spi_device_transmit(handle, &trans_desc);
 
-	// ESP_LOGI(tag, "... Removing device.");
-	// ESP_ERROR_CHECK(spi_bus_remove_device(handle));
     spi_bus_remove_device(handle);
 
-	// ESP_LOGI(tag, "... Freeing bus.");
-	// ESP_ERROR_CHECK(spi_bus_free(HSPI_HOST));
     spi_bus_free(HSPI_HOST);
+}
 
-	// ESP_LOGD(tag, "<< test_spi_task");
+void send_spi_read_cmd(uint8_t data[]) {
+    // Used to obtain 24bit LTC2400CS8-ADC reading
+    // NOTE: Readings can take up to 170ms
+
+	spi_bus_config_t bus_config;
+    memset(&bus_config, 0, sizeof(spi_bus_config_t));
+	bus_config.sclk_io_num = 14; // CLK
+	bus_config.mosi_io_num = 13; // MOSI
+	bus_config.miso_io_num = 12; // MISO
+	bus_config.quadwp_io_num = -1; // Not used
+	bus_config.quadhd_io_num = -1; // Not used
+    spi_bus_initialize(HSPI_HOST, &bus_config, 1);
+
+	spi_device_handle_t handle;
+	spi_device_interface_config_t dev_config;
+	dev_config.address_bits = 0;
+	dev_config.command_bits = 0;
+	dev_config.dummy_bits = 0;
+	dev_config.mode = 0;
+	dev_config.duty_cycle_pos = 0;
+	dev_config.cs_ena_posttrans = 0;
+	dev_config.cs_ena_pretrans = 0;
+	dev_config.clock_speed_hz = 20000;
+    dev_config.input_delay_ns = 0;
+	dev_config.spics_io_num = 19; // CS pin
+	dev_config.flags = 0;
+	dev_config.queue_size = 1;
+	dev_config.pre_cb = 0;
+	dev_config.post_cb = 0;
+    spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
+
+	spi_transaction_t trans_desc;
+	trans_desc.addr = 0;
+	trans_desc.cmd = 0;
+	trans_desc.flags = 0;
+	trans_desc.length = 4 * 8;
+	trans_desc.rxlength = 4 * 8;
+	trans_desc.tx_buffer = NULL;
+	trans_desc.rx_buffer = data;
+
+    spi_device_transmit(handle, &trans_desc);
+
+    spi_bus_remove_device(handle);
+
+    spi_bus_free(HSPI_HOST);
+}
+
+long long conv_adc_reading(uint8_t data[]) {
+    // Converts 32bit ADC data packet array to a 32bit int
+    // Specifically from 24bit data from the LTC2400CS8
+    int len_data = sizeof(data)/sizeof(data[0]);
+    long long conv_factor = 3774802; // Calibrate for each board
+    long long conv_offset = 2433697; // Calibrate for each board (i.e. V_GND)
+    long long conv_data = 0;
+    for (int i=0;i<len_data;i++){
+        if (!i){
+            conv_data = (conv_data << 8) + (data[i] & 0x0f);
+        }
+        else if (i==(len_data-1)){
+            conv_data = (conv_data << 4) + (data[i] >> 4);
+        }
+        else {
+            conv_data = (conv_data << 8) + data[i];
+        }
+        
+    }
+    if (conv_data >= MAX_24BIT_VAL)
+    {
+        conv_data = -1;
+        // ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
+    }
+    else if (data[0] & 0x01)
+    {
+        conv_data = -2;
+        // ESP_LOGE("*","ERROR 0x69 : ADC NOT READY or ADC INPUT IS OUT OF RANGE ");
+    }
+    // printf("%lld\n",conv_data);
+
+    conv_data = (conv_factor*conv_data / MAX_24BIT_VAL) - conv_offset; // Value in uV
+
+    // printf("%lld\n",conv_data);
+
+    return conv_data;
 }
 
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
@@ -279,8 +347,6 @@ uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
         return elec_val;
     }
 }
-
-// uint8_t calibrate_elec(uint8_t elec_vn, uint8_t elec_vp, uint8_t elec_vn, uint8_t elec_vp...)
 
 void printline_csv(struct Cycle_meas measurements, uint8_t num_elecs)
 // Prints out csv formatted measurements
@@ -357,6 +423,9 @@ void app_main(void)
     uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
     uint8_t elec_index[2] = {i_elecs, v_elecs};
 
+    // SPI read ADC
+    uint32_t spi_read_ADC[4];
+
     /*
     MAIN LOOP
     Continuously cycles through electrodes pattern
@@ -394,7 +463,7 @@ void app_main(void)
                 //Convert adc_reading to voltage in mV
                 // // for internal adc...  
                 // v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
-                // for external adc...
+                // for external i2c adc...
                 v_read.voltage = adc_reading * 1.255 - V_OFFSET;
                 cycle_read.vm[vp_elec] = v_read;
 
@@ -412,21 +481,15 @@ void app_main(void)
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
                 
-                // Clear screen
-                // for (int i=0 ; i<64 ; i++){
-                //     printf("\b"); 
-                // }
-
-                // Print buffer
-                // for (int i=0 ; i < NUM_ELECS ; i++) {
-                //     printf(" v%X%X:%d",cycle_read.vm[i].vn_elec, cycle_read.vm[i].vp_elec, cycle_read.vm[i].voltage);
-                // }
-                // printf("\n");
-
-                // printf("Raw: %d\tVoltage(%d-%d): %dmV\n", adc_reading, vn_elec, vp_elec, voltage - V_OFFSET);
-                led_state = !led_state; // Toggle LED for fun
+                 led_state = !led_state; // Toggle LED for fun
                 gpio_set_level(EN_LED, led_state);
-                vTaskDelay(pdMS_TO_TICKS(100));
+                vTaskDelay(pdMS_TO_TICKS(200));
+                
+                // ADC SPI read
+                send_spi_read_cmd(spi_read_ADC);
+                long long spi_reading = 0;
+                spi_reading = conv_adc_reading(spi_read_ADC);
+                printf("%lld\n",spi_reading);
             }
 
             printline_csv(cycle_read, NUM_ELECS);

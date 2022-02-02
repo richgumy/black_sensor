@@ -51,7 +51,7 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 
 // ADC
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate?
-#define NO_OF_SAMPLES   16          //Multisampling
+#define NO_OF_SAMPLES   16         //Multisampling
     // External SPI LTC2400CS8 ADC params
 #define MAX_24BIT_VAL   16777216
     // Internal ADC params
@@ -275,8 +275,8 @@ void send_spi_read_cmd(uint8_t data[]) {
 	trans_desc.addr = 0;
 	trans_desc.cmd = 0;
 	trans_desc.flags = 0;
-	trans_desc.length = 4 * 8;
-	trans_desc.rxlength = 4 * 8;
+	trans_desc.length = 2 * 8;
+	trans_desc.rxlength = 2 * 8;
 	trans_desc.tx_buffer = NULL;
 	trans_desc.rx_buffer = data;
 
@@ -291,8 +291,9 @@ long long conv_adc_reading(uint8_t data[]) {
     // Converts 32bit ADC data packet array to a 32bit int
     // Specifically from 24bit data from the LTC2400CS8
     int len_data = sizeof(data)/sizeof(data[0]);
-    long long conv_factor = 3774802; // Calibrate for each board
-    long long conv_offset = 2433697; // Calibrate for each board (i.e. V_GND)
+    long long conv_factor = 3774802; // Calibrate for each board 
+    long long conv_offset = 8390006; // Calibrate for each board (i.e. V_GND)
+
     long long conv_data = 0;
     for (int i=0;i<len_data;i++){
         if (!i){
@@ -306,25 +307,71 @@ long long conv_adc_reading(uint8_t data[]) {
         }
         
     }
-    if (conv_data >= MAX_24BIT_VAL)
+    if (conv_data >= 0xffffff)
     {
         conv_data = -1;
-        // ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
+        conv_offset = 0;
+        ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
+        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
     }
-    else if (data[0] & 0x01)
+    else if (data[0] & 0x10)
     {
         conv_data = -2;
-        // ESP_LOGE("*","ERROR 0x69 : ADC NOT READY or ADC INPUT IS OUT OF RANGE ");
+        conv_offset = 0;
+        ESP_LOGE("*","ERROR 0x69 : ADC NOT READY or ADC INPUT IS OUT OF RANGE ");
+        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
     }
     // printf("%lld\n",conv_data);
 
-    conv_data = (conv_factor*conv_data / MAX_24BIT_VAL) - conv_offset; // Value in uV
+    conv_data = ((conv_data - conv_offset) * 1000000) / 2898329; // Value in uV 2898329
 
     // printf("%lld\n",conv_data);
 
     return conv_data;
 }
 
+long long conv_adc_readingLTC1864L(uint8_t data[]) {
+    // Converts 16bit ADC data packet array to a 32bit int
+    // Specifically from 24bit data from the LTC2400CS8
+    int len_data = sizeof(data)/sizeof(data[0]);
+    long long conv_factor = 3774802; // Calibrate for each board 
+    long long conv_offset = 8390006; // Calibrate for each board (i.e. V_GND)
+
+    long long conv_data = 0;
+    for (int i=0;i<len_data;i++){
+        if (!i){
+            conv_data = (conv_data << 8) + (data[i] & 0x0f);
+        }
+        else if (i==(len_data-1)){
+            conv_data = (conv_data << 4) + (data[i] >> 4);
+        }
+        else {
+            conv_data = (conv_data << 8) + data[i];
+        }
+        
+    }
+    if (conv_data >= 0xffffff)
+    {
+        conv_data = -1;
+        conv_offset = 0;
+        ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
+        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
+    }
+    else if (data[0] & 0x10)
+    {
+        conv_data = -2;
+        conv_offset = 0;
+        ESP_LOGE("*","ERROR 0x69 : ADC NOT READY or ADC INPUT IS OUT OF RANGE ");
+        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
+    }
+    // printf("%lld\n",conv_data);
+
+    conv_data = ((conv_data - conv_offset) * 1000000) / 2898329; // Value in uV 2898329
+
+    // printf("%lld\n",conv_data);
+
+    return conv_data;
+}
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
     // Inputs elec_1 and elec2 get turned into a value in the format 0x(elec_1)(elec_2)
     if ((elec_1 > 15) || (elec_2 > 15)){
@@ -348,14 +395,14 @@ uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
     }
 }
 
-void printline_csv(struct Cycle_meas measurements, uint8_t num_elecs)
+void print_vmeas_csv(struct Cycle_meas measurements, uint8_t num_elecs)
 // Prints out csv formatted measurements
 {
     printf("%d,%d", measurements.isrc_elec, measurements.isnk_elec);
     for (int i=0; i<num_elecs; i++){
         printf(",%d", measurements.vm[i].voltage);
     }
-    printf("\n");
+    // printf("\n");
 }
 
 static void check_efuse(void)
@@ -425,6 +472,7 @@ void app_main(void)
 
     // SPI read ADC
     uint32_t spi_read_ADC[4];
+    long long spi_read_ADC_arr[16];
 
     /*
     MAIN LOOP
@@ -467,6 +515,32 @@ void app_main(void)
                 v_read.voltage = adc_reading * 1.255 - V_OFFSET;
                 cycle_read.vm[vp_elec] = v_read;
 
+                /////////////////////////////////////////
+                // WARNING MESSY LATE NIGHT CODE ZONE //
+                // ADC SPI read
+                long long spi_read = 0;
+                long long spi_read_avg = 0;
+                int num_good_samples = 0;
+                for (int i = 0; i < 3; i++) {
+                    send_spi_read_cmd(spi_read_ADC);
+                    spi_read = conv_adc_reading(spi_read_ADC);
+                    if (spi_read){ // Only add non-zero values to avg
+                        spi_read_avg += spi_read;
+                        num_good_samples++;
+                    }
+                    // else {
+                    //     printf("shite\n");
+                    // }
+                    vTaskDelay(pdMS_TO_TICKS(170));
+                }
+
+                if (num_good_samples){
+                    spi_read_avg /= num_good_samples;
+                }                
+                spi_read_ADC_arr[vp_elec] = spi_read_avg;
+                // printf("%lld\n",spi_reading);
+                /////////////////////////////////////////
+
                 // Cycle through voltage measurement electrodes
                 vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
                 vn_elec = iter_elec(cycle_dir, vn_elec, NUM_ELECS);
@@ -483,16 +557,16 @@ void app_main(void)
                 
                  led_state = !led_state; // Toggle LED for fun
                 gpio_set_level(EN_LED, led_state);
-                vTaskDelay(pdMS_TO_TICKS(200));
-                
-                // ADC SPI read
-                send_spi_read_cmd(spi_read_ADC);
-                long long spi_reading = 0;
-                spi_reading = conv_adc_reading(spi_read_ADC);
-                printf("%lld\n",spi_reading);
+                               
             }
 
-            printline_csv(cycle_read, NUM_ELECS);
+            // Print electrode measurements
+            print_vmeas_csv(cycle_read, NUM_ELECS);
+            printf(",\t%d,%d", cycle_read.isrc_elec, cycle_read.isnk_elec);
+            for (int i=0; i<16; i++){
+                printf(",%lld",spi_read_ADC_arr[i]);
+            }
+            printf("\n");
             
             if (ert_mode == ADJACENT) {
                 // Adjacent mode: cycle through current source electrodes

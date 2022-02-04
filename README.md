@@ -2,4 +2,8 @@
 Sensors developed using solely a carbon black silicone elastomer composite and the driving electronics. 
 
 Sensor pad array:
-This device is used to give the location of a pressure topology applied to a square pad.
+This device is used to give the location of a pressure topology applied to a carbon black silicone elastomer composite domain.
+
+Image reconstruction is done using EIDORS.
+
+

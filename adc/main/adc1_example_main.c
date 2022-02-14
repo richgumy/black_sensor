@@ -26,7 +26,7 @@ ERT program!
 #define PSEUDO_POLAR 2
 #define PP_PP 3 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
 
-static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
+static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
 // GPIO
     // MUX
@@ -36,8 +36,10 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 #define EN_MUX_VMEASN 16
     // LED
 #define EN_LED 18
+#define SW_LED 21
 
-#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<EN_MUX_ISRC) | (1ULL<<EN_MUX_VGND) | (1ULL<<EN_MUX_VMEASP) | (1ULL<<EN_MUX_VMEASN) | (1ULL<<EN_LED))
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<SW_LED) |(1ULL<<EN_MUX_ISRC) | (1ULL<<EN_MUX_VGND) | (1ULL<<EN_MUX_VMEASP) | (1ULL<<EN_MUX_VMEASN) | (1ULL<<EN_LED))
+#define GPIO_INPUT_PIN_SEL  (1ULL<<SW_LED)
 
 // I2C
 #define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
@@ -51,7 +53,7 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 
 // ADC
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate?
-#define NO_OF_SAMPLES   16         //Multisampling
+#define NO_OF_SAMPLES   10         //Multisampling
     // 16/24bit SPI ADC params
 #define MAX_24BIT_VAL   16777216
 #define MAX_16BIT_VAL   65536
@@ -100,21 +102,32 @@ struct Cycle_meas {
 // static const char TAG[] = "main";
 
 void init_ERT_mode (void) {
-    #if (ert_mode == CALIBRATE || ert_mode == ADJACENT)
+    #if (ert_mode == STANDBY)
+        printf("MODE = STANDBY\n");
+    #elif (ert_mode == CALIBRATE)
         isrc_elec = 1;
         isnk_elec = 0;
         vp_elec = 1;
         vn_elec = 0;
+        printf("MODE = CALIBRATE\n");
+    #elif ert_mode == ADJACENT)
+        isrc_elec = 1;
+        isnk_elec = 0;
+        vp_elec = 1;
+        vn_elec = 0;
+        printf("MODE = ADJACENT\n");
     #elif (ert_mode == PSEUDO_POLAR)
         isrc_elec = 0;
         isnk_elec = 7;
         vp_elec = 0;
         vn_elec = 1;
+        printf("MODE = PSEUDO_POLAR\n");
     #elif (ert_mode == PP_PP)
         isrc_elec = 0;
         isnk_elec = 7;
         vp_elec = 0;
         vn_elec = 7;
+        printf("MODE = PP_PP\n");
     #else
         #error "INVALID ELECTRODE DRIVE MODE"
     #endif
@@ -135,19 +148,35 @@ static esp_err_t i2c_master_driver_initialize(void)
 }
 
 void setup_all_gpio() {
-    gpio_config_t io_conf;
+    // output pins
+    gpio_config_t o_conf;
     //disable interrupt
-    io_conf.intr_type = GPIO_INTR_DISABLE;
+    o_conf.intr_type = GPIO_INTR_DISABLE;
     //set as output mode
-    io_conf.mode = GPIO_MODE_OUTPUT;
+    o_conf.mode = GPIO_MODE_OUTPUT;
     //bit mask of the pins that you want to set
-    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    o_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
     //disable pull-down mode
-    io_conf.pull_down_en = 0;
+    o_conf.pull_down_en = 0;
     //disable pull-up mode
-    io_conf.pull_up_en = 0;
+    o_conf.pull_up_en = 0;
     //configure GPIO with the given settings
-    gpio_config(&io_conf);
+    gpio_config(&o_conf);
+
+    // input pins
+    gpio_config_t i_conf;
+    //disable interrupt
+    i_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    i_conf.mode = GPIO_MODE_INPUT;
+    //bit mask of the pins that you want to set
+    i_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    //disable pull-down mode
+    i_conf.pull_down_en = 0;
+    //disable pull-up mode
+    i_conf.pull_up_en = 1;
+    //configure GPIO with the given settings
+    gpio_config(&i_conf);
 }
 
 int do_i2cget_cmd(uint8_t *chipaddr)
@@ -263,7 +292,7 @@ void send_spi_read_cmd(uint8_t data[]) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 20000;
+	dev_config.clock_speed_hz = 50000;
     dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = 19; // CS pin
 	dev_config.flags = 0;
@@ -335,7 +364,7 @@ long long conv_adc_readingLTC1864L(uint8_t data[]) {
     // Converts 16bit ADC data packet array to an int from the LTC2400CS8
     // uint8_t len_data = sizeof(data)/sizeof(data[0]); // equals 4 somehow??
     long long conv_factor = 4865000; // Calibrate for each board's 5v supply (add V buffer to stabilise)
-    long long conv_offset = 2388088; // Calibrate for each board (i.e. V_GND)
+    long long conv_offset = 32533; // Calibrate for each board (i.e. V_GND)
 
     long long conv_data = 0;
     for (int i=0;i<2;i++){
@@ -351,7 +380,7 @@ long long conv_adc_readingLTC1864L(uint8_t data[]) {
     // }
     // printf("%lld\n",conv_data);
 
-    // conv_data = ((conv_data * conv_factor) / MAX_16BIT_VAL) - conv_offset; // Value in uV
+    conv_data = -(conv_data - conv_offset)/11; // Arb value with ref to VGND
 
     // printf("%lld\n",conv_data);
 
@@ -506,14 +535,14 @@ void app_main(void)
                 // ADC SPI read
                 long long spi_read = 0;
                 long long spi_read_avg = 0;
-                for (int i = 0; i < 1; i++) {
+                for (int i = 0; i < NO_OF_SAMPLES; i++) {
                     send_spi_read_cmd(spi_read_ADC);
                     spi_read = conv_adc_readingLTC1864L(spi_read_ADC);
                     spi_read_avg += spi_read;
                     vTaskDelay(pdMS_TO_TICKS(1)); // min sample period is actually 6us not 1ms
                 }
 
-                // spi_read_avg /= NO_OF_SAMPLES;
+                spi_read_avg /= NO_OF_SAMPLES;
 
                 spi_read_ADC_arr[vp_elec] = spi_read_avg;
                 // printf("%lld\n",spi_reading);
@@ -533,8 +562,10 @@ void app_main(void)
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
                 
-                // led_state = !led_state; // Toggle LED for fun
-                // gpio_set_level(EN_LED, led_state);
+                if (!gpio_get_level(SW_LED)){
+                    led_state = !led_state; // Toggle LED for fun
+                    gpio_set_level(EN_LED, led_state);
+                }
                                
             }
 

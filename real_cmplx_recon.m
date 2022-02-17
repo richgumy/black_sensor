@@ -1,6 +1,5 @@
 % print_convert real_complex01b.png 
-% 
-% 
+
 % % Create reconstruction model + solve
 imdl = mk_common_model('f2c',16);
 
@@ -23,24 +22,22 @@ while (Vm_raw(1:2) ~= [1 0] & Vm_raw(1:2) ~= [0 1]) % find start of serial matri
     fprintf("Waiting...\n",i);
 end
 fprintf("Setting current reference state\n");
-% fprintf("%d ",Vm_raw(3+ADC:18+ADC));
-% fprintf("\n");
+fprintf("%d ",Vm_raw(3+ADC:18+ADC));
+fprintf("\n");
 
 vi = zeros(256,1);
 vi(1:16) = Vm_raw(3+ADC:18+ADC);
 for (i = 2:16)
     Vm_raw = str2num(readline(ert_serial));
-%     fprintf("%d ",Vm_raw(3+ADC:18+ADC));
-%     fprintf("\n");
+    fprintf("%d ",Vm_raw(3+ADC:18+ADC));
+    fprintf("\n");
     vi((i-1)*16+1:i*16) = Vm_raw(3+ADC:18+ADC);
 end
 fprintf("Reference set\n");
 
-% % Store all solved inverse problems here -->>Make an array of structs??
-% isolve = 0;
-% imgr = inv_solve(imdl, vi, vi+0.01);
-% solved_imgr_arr = imgr;
-% isolve = isolve + 1;
+% Store all solved elements
+dut_r_arr = [];
+iter = 1;
 
 % Continuously update vi and vh based on serial readings
 while(1)
@@ -92,6 +89,8 @@ while(1)
 
     title 'Real Conductivity Change'
     
+    dut_r_arr(:,iter) = imgr.elem_data;
+    iter = iter + 1;
     range_cond = max(imgr.elem_data)-min(imgr.elem_data);
     fprintf("Range:%f\n",range_cond);
     
@@ -107,4 +106,12 @@ while(1)
     flush(ert_serial); % Clears serial buffer
 end
 
+% Call this function before re-running
 clear ert_serial
+
+% Replay animation of stored reconstructions:
+for i = 1:length(dut_r_arr)-1
+    imgr.elem_data = dut_r_arr(:,i);
+    show_fem(imgr);
+    pause(0.01);
+end

@@ -8,7 +8,7 @@ Black flat sensor is a project aimed at characterising carbon black silicone com
 
 A low cost PCB has been developed to capture the ERT data in reatime, which is streamed to a another computer to run a resistivity image reconstruction algorithm.
 
-![Black Flat Sensor - System Architecture](/media/architecture.jpg)
+![Black Flat Sensor - System Architecture](/media/architecture.png)
 
 ## 1 - ERT PCB hardware
 All of the files to create the hardware are given as raw kicad files. All of the component libraries may not exist so will need to made manually or imported.
@@ -45,6 +45,9 @@ The basic electrode drive process is:
 
 ## 3 - Reconstruction software
 EIDORS was used as the library for image reconstruction using the data gathered from the PCB. A reference measurement is taken from the material on start-up of the reconstruction program. The reference measurement is compared to a current measurement for change in resisitvity (\Delta R) image reconstruction.
+
+![Black Flat Sensor - Siz Test Cases](/media/testing.png)
+
 ### Features:
 - Reconstructs image in realtime using serial data.
 - Save images for gif generation

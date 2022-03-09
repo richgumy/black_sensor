@@ -1,6 +1,6 @@
 Place the ert_firmware folder in your %userprofile%\esp folder. 
 
-Then run using esp-idf commands
+Then run using esp-idf command
 
 ```
 idf.py -p PORT flash monitor

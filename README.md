@@ -46,7 +46,7 @@ The basic electrode drive process is:
 ## 3 - Reconstruction software
 EIDORS was used as the library for image reconstruction using the data gathered from the PCB. A reference measurement is taken from the material on start-up of the reconstruction program. The reference measurement is compared to a current measurement for change in resisitvity (\Delta R) image reconstruction.
 
-![Black Flat Sensor - Siz Test Cases](/media/testing.png)
+![Black Flat Sensor - Siz Test Cases](/media/testing.png =100x)
 
 ### Features:
 - Reconstructs image in realtime using serial data.

@@ -8,6 +8,8 @@ Black flat sensor is a project aimed at characterising carbon black silicone com
 
 A low cost PCB has been developed to capture the ERT data in reatime, which is streamed to a another computer to run a resistivity image reconstruction algorithm.
 
+[Black Flat Sensor - System Architecture](/architecture.jpg)
+
 ## 1 - ERT PCB hardware
 All of the files to create the hardware are given as raw kicad files. All of the component libraries may not exist so will need to made manually or imported.
 ### Features:

@@ -1,4 +1,4 @@
-/* Adapted from esp-idf examples.
+/*
 ERT program!
 */
 #include <stdio.h>
@@ -56,30 +56,8 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 
 // ADC
 #define ADC_CS_PIN 19
-#define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate?
-#define NO_OF_SAMPLES   1         //Multisampling
-    // 16/24bit SPI ADC params
-#define MAX_24BIT_VAL   16777216
 #define MAX_16BIT_VAL   65536
-    // Internal ADC params
-static esp_adc_cal_characteristics_t *adc_chars;
-#if CONFIG_IDF_TARGET_ESP32
-static const adc_channel_t channel = ADC_CHANNEL_0;     //GPIO34 if ADC1, GPIO14 if ADC2 for CHANNEL6
-static const adc_bits_width_t width = ADC_WIDTH_BIT_12; 
-#elif CONFIG_IDF_TARGET_ESP32S2
-static const adc_channel_t channel = ADC_CHANNEL_0;     // GPIO7 if ADC1, GPIO17 if ADC2 for CHANNEL6
-static const adc_bits_width_t width = ADC_WIDTH_BIT_13;
-#endif
-static const adc_atten_t atten = ADC_ATTEN_DB_11;
-static const adc_unit_t unit = ADC_UNIT_1;
-    // I2C params
-static gpio_num_t i2c_gpio_sda = 22;
-static gpio_num_t i2c_gpio_scl = 23;
-static uint32_t i2c_frequency = 400000;
-static i2c_port_t i2c_port = I2C_NUM_0;
-static uint8_t *ADC_chip_address = 0x4F;
-
-
+#define NO_ADC_SAMPLES   1         //Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -137,20 +115,6 @@ void init_ERT_mode (void) {
     #endif
 }
 
-static esp_err_t i2c_master_driver_initialize(void)
-{
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = i2c_gpio_sda,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = i2c_gpio_scl,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = i2c_frequency,
-        // .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
-    };
-    return i2c_param_config(i2c_port, &conf);
-}
-
 void setup_all_gpio() {
     // output pins
     gpio_config_t o_conf;
@@ -183,49 +147,6 @@ void setup_all_gpio() {
     gpio_config(&i_conf);
 }
 
-int do_i2cget_cmd(uint8_t *chipaddr)
-{
-    /* chip address pointer */
-    uint8_t chip_addr = *chipaddr;
-    int len = 2;
-
-    uint8_t *data = malloc(len);
-    uint16_t output_data;
-
-    i2c_driver_install(i2c_port, I2C_MODE_MASTER, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
-    i2c_master_driver_initialize();
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, chip_addr << 1 | READ_BIT, ACK_CHECK_EN);
-    i2c_master_read(cmd, data, len - 1, ACK_VAL);
-    i2c_master_read_byte(cmd, data + len - 1, NACK_VAL);
-    i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
-    // if (ret == ESP_OK) {
-    //     for (int i = 0; i < len; i++) {
-    //         printf("0x%02x ", data[i]);
-    //         if ((i + 1) % 16 == 0) {
-    //             printf("\r\n");
-    //         }
-    //     }
-    //     if (len % 16) {
-    //         printf("\r\n");
-    //     }
-    // }
-    // } else if (ret == ESP_ERR_TIMEOUT) {
-    //     ESP_LOGW(TAG, "Bus is busy");
-    // } else {
-    //     ESP_LOGW(TAG, "Read failed");
-    // }
-    output_data = data[1] + (data[0] << 8); 
-    // printf("Test:0x%x\n", output_data);
-    free(data);
-    i2c_driver_delete(i2c_port);
-    
-    return output_data;
-}
-
 void send_spi_cmd_init(void) {
 	spi_bus_config_t bus_config;
     memset(&bus_config, 0, sizeof(spi_bus_config_t));
@@ -236,46 +157,6 @@ void send_spi_cmd_init(void) {
 	bus_config.quadhd_io_num = -1; // Not used
 
     spi_bus_initialize(HSPI_HOST, &bus_config, 1);
-}
-
-void send_spi_cmd(uint8_t data[]) {
-    // Used to obtain send command to control MUXs through a cascaded shift register
-                  
-	spi_device_handle_t handle;
-
-	spi_device_interface_config_t dev_config;
-	dev_config.address_bits = 0;
-	dev_config.command_bits = 0;
-	dev_config.dummy_bits = 0;
-	dev_config.mode = 0;
-	dev_config.duty_cycle_pos = 0;
-	dev_config.cs_ena_posttrans = 0;
-	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 1000000;
-    dev_config.input_delay_ns = 0;
-	dev_config.spics_io_num = 15; // CS pin
-	dev_config.flags = 0;
-	dev_config.queue_size = 1;
-	dev_config.pre_cb = 0;
-	dev_config.post_cb = 0;
-
-    spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
-
-	spi_transaction_t trans_desc;
-	trans_desc.addr = 0;
-	trans_desc.cmd = 0;
-	trans_desc.flags = 0;
-	trans_desc.length = 2 * 8;
-	trans_desc.rxlength = 0;
-	trans_desc.tx_buffer = data;
-	trans_desc.rx_buffer = data;
-
-    spi_device_transmit(handle, &trans_desc);
-
-    spi_bus_remove_device(handle);
-
-    // spi_bus_free(HSPI_HOST);
-    
 }
 
 void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
@@ -291,7 +172,7 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 1000000;
+	dev_config.clock_speed_hz = 10000;
     dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = CS_pin;
 	dev_config.flags = 0;
@@ -305,7 +186,7 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
 	trans_desc.addr = 0;
 	trans_desc.cmd = 0;
 	trans_desc.flags = 0;
-	trans_desc.length = data_len * 8; // Unsure if this is bits or bytes? test this...
+	trans_desc.length = data_len * 8; // Unsure if this is bits or bytes? test this...?
 	trans_desc.rxlength = data_len * 8;
 	trans_desc.tx_buffer = data;
 	trans_desc.rx_buffer = data;
@@ -317,56 +198,11 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
     // spi_bus_free(HSPI_HOST);
 }
 
-long long conv_adc_readingLT2400(uint16_t data[]) {
-    // Converts 32bit ADC data packet array to a 32bit int
-    // Specifically from 24bit data from the LTC2400CS8
-    int len_data = sizeof(data)/sizeof(data[0]);
-    long long conv_factor = 3774802; // Calibrate for each board 
-    long long conv_offset = 8390006; // Calibrate for each board (i.e. V_GND)
-
-    long long conv_data = 0;
-    for (int i=0;i<len_data;i++){
-        if (!i){
-            conv_data = (conv_data << 8) + (data[i] & 0x0f);
-        }
-        else if (i==(len_data-1)){
-            conv_data = (conv_data << 4) + (data[i] >> 4);
-        }
-        else {
-            conv_data = (conv_data << 8) + data[i];
-        }
-        
-    }
-    if (conv_data >= 0xffffff)
-    {
-        conv_data = -1;
-        conv_offset = 0;
-        ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
-        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
-    }
-    else if (data[0] & 0x10)
-    {
-        conv_data = -2;
-        conv_offset = 0;
-        ESP_LOGE("*","ERROR 0x69 : ADC NOT READY or ADC INPUT IS OUT OF RANGE ");
-        // printf("0x%x%x%x%x\n",data[0],data[1],data[2],data[3]);
-    }
-    // printf("%lld\n",conv_data);
-
-    conv_data = ((conv_data - conv_offset) * 1000000) / 2898329; // Value in uV 2898329
-
-    // printf("%lld\n",conv_data);
-
-    return conv_data;
-}
-
-int16_t conv_adc_readingLTC1864L(uint8_t data[]) {
-    // Converts 16bit ADC data packet array to an int from the LTC2400CS8
-    // uint8_t len_data = sizeof(data)/sizeof(data[0]); // equals 4 somehow??
+int32_t conv_adc_readingLTC1864L(uint8_t data[]) {
     // long long conv_factor = 4865000; // Calibrate for each board's 5v supply (add V buffer to stabilise)
-    int16_t conv_offset = 31360; // 32533; // Calibrate for each board (i.e. V_GND)
+    int32_t conv_offset = 31360; // 32533; // Calibrate for each board (i.e. V_GND)
 
-    int16_t conv_data = 0;
+    int32_t conv_data = 0;
     for (int i=0;i<2;i++){
         // printf("%x\n",data[i]);
         conv_data = (conv_data << 8) + data[i];      
@@ -380,7 +216,8 @@ int16_t conv_adc_readingLTC1864L(uint8_t data[]) {
     // }
     // printf("%lld\n",conv_data);
 
-    conv_data = (conv_data - conv_offset); // Arb value with ref to VGND
+    conv_data = (conv_data - conv_offset)*5000; // Arb value with ref to VGND
+    conv_data = conv_data / 65536;
 
     // printf("%lld\n",conv_data);
 
@@ -413,11 +250,10 @@ uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
 void print_vmeas_csv(struct Cycle_meas measurements, uint8_t num_elecs)
 // Prints out csv formatted measurements
 {
-    printf("%d,%d", measurements.isrc_elec, measurements.isnk_elec);
     for (int i=0; i<num_elecs; i++){
         printf(",%d", measurements.vm[i].voltage);
     }
-    // printf("\n");
+    printf("\n");
 }
 
 static void check_efuse(void)
@@ -471,15 +307,6 @@ void app_main(void)
     gpio_set_level(EN_MUX_VMEASP, EN_ALL_MUX);
     gpio_set_level(EN_MUX_VMEASN, EN_ALL_MUX);
 
-    //Configure ADC
-    adc1_config_width(width);
-    adc1_config_channel_atten(channel, atten);
-    // adc_vref_to_gpio(ADC_UNIT_1, GPIO_NUM_34);
-
-    //Characterize ADC
-    adc_chars = calloc(1, sizeof(esp_adc_cal_characteristics_t));
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(unit, atten, width, DEFAULT_VREF, adc_chars); // Characterised using DEFAULT_VREF (factory?)
-
     // Assign initial mux electrode values
     uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
     uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
@@ -502,12 +329,9 @@ void app_main(void)
             cycle_read.isnk_elec = isnk_elec;
 
             if (!cycle_read.isnk_elec){
-                printf("A\n");
+                printf("A\n"); // Break in between full ERT measurement
             }
-
-            // uint8_t led_state = 0;
-
-            
+         
             // ////// TIMING CODE START //////
             // struct timeval tv_I;
             // gettimeofday(&tv_I, NULL);
@@ -524,36 +348,18 @@ void app_main(void)
                  // Send SPI mux cmd
                 send_spi_read_cmd(elec_index, MUX_CS_PIN);                                   
             
-                // // Multisampling I2C ADC
-                // uint32_t adc_reading = 0;
-                // for (int i = 0; i < NO_OF_SAMPLES; i++) {
-                //     // // Read internal ADC:
-                //     // adc_reading += adc1_get_raw((adc1_channel_t)channel); // ADC operates @ 6kHz
-                //     // Read external i2c ADC
-                //     adc_reading += do_i2cget_cmd(&ADC_chip_address);
-                // }
-                // adc_reading /= NO_OF_SAMPLES;
-
-                // //Convert adc_reading to voltage in mV
-                // // // for internal adc...  
-                // // v_read.voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars) - V_OFFSET;
-                // // for external i2c adc...
-                // v_read.voltage = adc_reading * 1.255 - V_OFFSET;
-                // cycle_read.vm[vp_elec] = v_read;
-
                 // ADC SPI read
-                int16_t spi_read = 0;
-                int16_t spi_read_avg = 0;
-                for (int i = 0; i < NO_OF_SAMPLES; i++) {
+                int32_t spi_read = 0;
+                int32_t spi_read_avg = 0;
+                for (int i = 0; i < NO_ADC_SAMPLES; i++) {
                     
                     send_spi_read_cmd(spi_read_ADC, ADC_CS_PIN);
 
                     spi_read = conv_adc_readingLTC1864L(spi_read_ADC);
 
                     spi_read_avg += spi_read;
-                    // vTaskDelay(pdMS_TO_TICKS(1)); // min sample period is actually 6us not 1ms
                 }
-                spi_read_avg /= NO_OF_SAMPLES;
+                spi_read_avg /= NO_ADC_SAMPLES;
 
                 spi_read_ADC_arr[vp_elec] = spi_read_avg;
 
@@ -570,13 +376,7 @@ void app_main(void)
                 }
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
-                
-                // if (!gpio_get_level(SW_LED)){
-                //     led_state = !led_state; // Toggle LED for fun
-                //     gpio_set_level(EN_LED, led_state);
-                // }
 
-                
 
             }
 
@@ -587,10 +387,7 @@ void app_main(void)
             // int64_t tv_D = time_us_F - time_us_I;
             // printf("%lld\n", tv_D);
 
-            // Print electrode measurements
-            // print_vmeas_csv(cycle_read, NUM_ELECS);
-            // printf(",\t%d,%d", cycle_read.isrc_elec, cycle_read.isnk_elec);
-            
+            // Print electrode measurements           
             for (int i=0; i<16; i++){
                 printf("%hd,",spi_read_ADC_arr[i]);
             }
@@ -602,7 +399,6 @@ void app_main(void)
                 isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
-                // send_spi_read_cmd(elec_index);
             }           
         }
         gpio_set_level(EN_LED, 1);

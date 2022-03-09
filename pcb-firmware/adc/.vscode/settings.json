@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "sdkconfig.h": "c"
-    },
-    "idf.adapterTargetName": "esp32",
-    "idf.portWin": "COM3"
-}

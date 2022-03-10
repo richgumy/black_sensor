@@ -44,20 +44,10 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 #define GPIO_OUTPUT_PIN_SEL  ((1ULL<<SW_LED) |(1ULL<<EN_MUX_ISRC) | (1ULL<<EN_MUX_VGND) | (1ULL<<EN_MUX_VMEASP) | (1ULL<<EN_MUX_VMEASN) | (1ULL<<EN_LED))
 #define GPIO_INPUT_PIN_SEL  (1ULL<<SW_LED)
 
-// I2C
-#define I2C_MASTER_TX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_RX_BUF_DISABLE 0 /*!< I2C master doesn't need buffer */
-#define WRITE_BIT I2C_MASTER_WRITE  /*!< I2C master write */
-#define READ_BIT I2C_MASTER_READ    /*!< I2C master read */
-#define ACK_CHECK_EN 0x1            /*!< I2C master will check ack from slave*/
-#define ACK_CHECK_DIS 0x0           /*!< I2C master will not check ack from slave */
-#define ACK_VAL 0x0                 /*!< I2C ack value */
-#define NACK_VAL 0x1                /*!< I2C nack value */
-
 // ADC
 #define ADC_CS_PIN 19
 #define MAX_16BIT_VAL   65536
-#define NO_ADC_SAMPLES   1         //Multisampling
+#define NO_ADC_SAMPLES   20         // Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -86,18 +76,18 @@ struct Cycle_meas {
 void init_ERT_mode (void) {
     #if (ert_mode == STANDBY)
         printf("MODE = STANDBY\n");
+    #elif (ert_mode == ADJACENT)
+        isrc_elec = 1;
+        isnk_elec = 0;
+        vp_elec = 1;
+        vn_elec = 0;
+        printf("MODE = ADJACENT\n");
     #elif (ert_mode == CALIBRATE)
         isrc_elec = 1;
         isnk_elec = 0;
         vp_elec = 1;
         vn_elec = 0;
         printf("MODE = CALIBRATE\n");
-    #elif ert_mode == ADJACENT)
-        isrc_elec = 1;
-        isnk_elec = 0;
-        vp_elec = 1;
-        vn_elec = 0;
-        printf("MODE = ADJACENT\n");
     #elif (ert_mode == PSEUDO_POLAR)
         isrc_elec = 0;
         isnk_elec = 7;
@@ -111,8 +101,30 @@ void init_ERT_mode (void) {
         vn_elec = 7;
         printf("MODE = PP_PP\n");
     #else
-        #error "INVALID ELECTRODE DRIVE MODE"
+        #error "INVALID ERT MODE!\n"
     #endif
+    
+    // printf("MODE = ")
+    // switch(ert_mode) {
+
+    // case STANDBY  :
+    //     printf("STANDBY\n");
+    //     break;
+    // case CALIBRATE  :
+    //     printf("CALIBRATE\n");
+    //     break;
+    // case ADJACENT  :
+    //     printf("ADJACENT\n");
+    //     break;
+    // case PSEUDO_POLAR  :
+    //     printf("PSEUDO_POLAR\n");
+    //     break;
+    // case PP_PP  :
+    //     printf("PP_PP\n");
+    //     break;
+    // default :
+    //     printf("INVALID ERT MODE!\n");
+    // }
 }
 
 void setup_all_gpio() {
@@ -159,7 +171,8 @@ void send_spi_cmd_init(void) {
     spi_bus_initialize(HSPI_HOST, &bus_config, 1);
 }
 
-void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
+
+void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
     uint8_t data_len = sizeof(data);
 
 	spi_device_handle_t handle;
@@ -172,7 +185,7 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 10000;
+	dev_config.clock_speed_hz = 500000;
     dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = CS_pin;
 	dev_config.flags = 0;
@@ -186,8 +199,8 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
 	trans_desc.addr = 0;
 	trans_desc.cmd = 0;
 	trans_desc.flags = 0;
-	trans_desc.length = data_len * 8; // Unsure if this is bits or bytes? test this...?
-	trans_desc.rxlength = data_len * 8;
+	trans_desc.length = data_len/2 * 8;
+	trans_desc.rxlength = data_len/2 * 8;
 	trans_desc.tx_buffer = data;
 	trans_desc.rx_buffer = data;
 
@@ -199,27 +212,15 @@ void send_spi_read_cmd(uint8_t data[], uint8_t CS_pin) {
 }
 
 int32_t conv_adc_readingLTC1864L(uint8_t data[]) {
-    // long long conv_factor = 4865000; // Calibrate for each board's 5v supply (add V buffer to stabilise)
-    int32_t conv_offset = 31360; // 32533; // Calibrate for each board (i.e. V_GND)
-
+    // Converts arbitrary analogue unit to readable zero'd value
+    int32_t conv_offset = 32533; // Calibrate for each board (i.e. V_GND)
     int32_t conv_data = 0;
+
     for (int i=0;i<2;i++){
-        // printf("%x\n",data[i]);
         conv_data = (conv_data << 8) + data[i];      
     }
-    // if (conv_data >= 0xffff)
-    // {
-    //     conv_data = -1;
-    //     conv_offset = 0;
-    //     ESP_LOGE("*","ERROR 0x69 : ADC INPUT IS OUT OF RANGE");
-    //     // printf("0x%x%x%x%x\n",data[0],data[1]);
-    // }
-    // printf("%lld\n",conv_data);
 
-    conv_data = (conv_data - conv_offset)*5000; // Arb value with ref to VGND
-    conv_data = conv_data / 65536;
-
-    // printf("%lld\n",conv_data);
+    conv_data = -(conv_data - conv_offset); // Arb value with ref to VGND
 
     return conv_data;
 }
@@ -256,36 +257,6 @@ void print_vmeas_csv(struct Cycle_meas measurements, uint8_t num_elecs)
     printf("\n");
 }
 
-static void check_efuse(void)
-{
-#if CONFIG_IDF_TARGET_ESP32
-    //Efuse is basically a register with permanent values 'burned' into it.
-    
-    //Check if TP is burned into eFuse
-    //TP can be manually 'burned' into the MCU by the user
-    if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP) == ESP_OK) {
-        printf("eFuse Two Point: Supported\n");
-    } else {
-        printf("eFuse Two Point: NOT supported\n");
-    }
-    //Check Vref is burned into eFuse
-    if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_VREF) == ESP_OK) {
-        printf("eFuse Vref: Supported\n");
-    } else {
-        printf("eFuse Vref: NOT supported\n");
-    }
-#elif CONFIG_IDF_TARGET_ESP32S2
-    if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP) == ESP_OK) {
-        printf("eFuse Two Point: Supported\n");
-    } else {
-        printf("Cannot retrieve eFuse Two Point calibration values. Default calibration values will be used.\n");
-    }
-#else
-#error "This example is configured for ESP32/ESP32S2."
-#endif
-}
-
-
 void app_main(void)
 {   
     /*
@@ -295,13 +266,9 @@ void app_main(void)
 
     init_ERT_mode();
 
-    //Check if Two Point or Vref are burned into eFuse for ADC
-    check_efuse();
-
     //Configure GPIO
     setup_all_gpio();
-    uint8_t EN_ALL_MUX;
-    EN_ALL_MUX = ert_mode == STANDBY? 1 : 0;
+    uint8_t EN_ALL_MUX = ert_mode == STANDBY? 1 : 0;
     gpio_set_level(EN_MUX_ISRC, EN_ALL_MUX);
     gpio_set_level(EN_MUX_VGND, EN_ALL_MUX);
     gpio_set_level(EN_MUX_VMEASP, EN_ALL_MUX);
@@ -315,11 +282,11 @@ void app_main(void)
     // SPI read ADC
     send_spi_cmd_init();
     uint8_t spi_read_ADC[2]; // [2] for 16bit ADC
-    int spi_read_ADC_arr[16];
+    uint16_t spi_read_ADC_arr[16];
 
     /*
     MAIN LOOP
-    Continuously cycles through electrodes pattern
+    Continuously cycles through electrode pattern mode
     */
     while (1) {
         while (ert_mode != STANDBY){
@@ -346,22 +313,22 @@ void app_main(void)
                 v_read.vn_elec = vn_elec;
 
                  // Send SPI mux cmd
-                send_spi_read_cmd(elec_index, MUX_CS_PIN);                                   
+                send_spi_cmd(elec_index, MUX_CS_PIN);
             
                 // ADC SPI read
                 int32_t spi_read = 0;
                 int32_t spi_read_avg = 0;
                 for (int i = 0; i < NO_ADC_SAMPLES; i++) {
                     
-                    send_spi_read_cmd(spi_read_ADC, ADC_CS_PIN);
+                    send_spi_cmd(spi_read_ADC, ADC_CS_PIN);
 
                     spi_read = conv_adc_readingLTC1864L(spi_read_ADC);
 
                     spi_read_avg += spi_read;
                 }
                 spi_read_avg /= NO_ADC_SAMPLES;
-
-                spi_read_ADC_arr[vp_elec] = spi_read_avg;
+                int16_t spi_read_avg_16b = spi_read_avg;
+                spi_read_ADC_arr[vp_elec] = spi_read_avg_16b;
 
                 // Cycle through voltage measurement electrodes
                 vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);

@@ -47,6 +47,27 @@ comport = "COM3";
 ert_serial = serial(comport,115200); % This should be serialport in MATLAB.
 fprintf("Connected to %s \n",comport);
 
+%% 
+%% 0 - CREATE INVERSE MODEL
+%% 
+%clear inv2d;
+%inv2d.name= 'EIT inverse';
+%%inv2d.solve=       'inv_solve_diff_GN_one_step';
+% inv2d.solve=       'np_inv_solve';
+%%inv2d.solve=       'aa_inv_total_var';
+% inv2d.hyperparameter.value = 3e-3;
+%%inv2d.hyperparameter.func = 'select_noise_figure';
+%%inv2d.hyperparameter.noise_figure= 2;
+%%inv2d.hyperparameter.tgt_elems= 1:4;
+%%inv2d.RtR_prior= 'prior_laplace';
+% inv2d.R_prior= 'prior_TV';
+%%inv2d.RtR_prior= 'prior_gaussian_HPF';
+%inv2d.reconst_type= 'difference';
+%inv2d.jacobian_bkgnd.value= 1;
+%inv2d.fwd_model= mdl_2d_2;
+%inv2d.fwd_model.misc.perm_sym= '{y}';
+%inv2d= eidors_obj('inv_model', inv2d);
+
 %% 1 - CALIBRATE
 % Obtain reference DUT measurements 
 Vm_raw = str2num(readline(ert_serial));
@@ -86,11 +107,15 @@ while(1)
     fprintf("Waiting...\n",i);
   end
   Vm_raw = str2num(readline(ert_serial));
+%  fprintf("%d ",Vm_raw);
+%  fprintf("\n");
   Vm_arr = zeros(256,1);
   Vm_arr(1:16) = Vm_raw;
   for (i = 2:16)
     Vm_raw = str2num(readline(ert_serial));
-    vi((i-1)*16+1:i*16) = Vm_raw;
+%    fprintf("%d ",Vm_raw);
+%    fprintf("\n");
+    Vm_arr((i-1)*16+1:i*16) = Vm_raw;
   end
   vh = Vm_arr;
   tf = time;

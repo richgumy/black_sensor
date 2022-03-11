@@ -130,11 +130,13 @@ while(1)
   fprintf("solved in %f\n", td);
   
   ti = time;
+  
   eidors_colourbar(imgr);
-  %     imgr.calc_colours.ref_level = -10; %  centre of the colour scale
-  imgr.calc_colours.clim = 30;  %  max diff from ref_level
+  imgr.calc_colours.ref_level= 0;
+  imgr.calc_colours.clim= 140;
   show_fem(imgr);
   title 'Real Conductivity Change'
+  
   tf = time;
   td = tf-ti;
   fprintf("plot rendered in %f\n", td);

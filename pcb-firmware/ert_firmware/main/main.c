@@ -47,7 +47,7 @@ static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE
 // ADC
 #define ADC_CS_PIN 19
 #define MAX_16BIT_VAL   65536
-#define NO_ADC_SAMPLES   20         // Multisampling
+#define NO_ADC_SAMPLES   4         // Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -171,8 +171,14 @@ void send_spi_cmd_init(void) {
     spi_bus_initialize(HSPI_HOST, &bus_config, 1);
 }
 
-
 void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
+         
+    // ////// TIMING CODE START ///////
+    // struct timeval tv_I;
+    // gettimeofday(&tv_I, NULL);
+    // int64_t time_us_I = (int64_t)tv_I.tv_sec * 1000000L + (int64_t)tv_I.tv_usec;
+    // ////////////////////////////////
+
     uint8_t data_len = sizeof(data);
 
 	spi_device_handle_t handle;
@@ -185,7 +191,7 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 500000;
+	dev_config.clock_speed_hz = 700000;
     dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = CS_pin;
 	dev_config.flags = 0;
@@ -207,7 +213,13 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
     spi_device_transmit(handle, &trans_desc);
 
     spi_bus_remove_device(handle);
-
+    // ////// TIMING CODE FINISH //////
+    // struct timeval tv_F;
+    // gettimeofday(&tv_F, NULL);
+    // int64_t time_us_F = (int64_t)tv_F.tv_sec * 1000000L + (int64_t)tv_F.tv_usec;
+    // int64_t tv_D = time_us_F - time_us_I;
+    // printf("%lld\n", tv_D);
+    // ////////////////////////////////
     // spi_bus_free(HSPI_HOST);
 }
 
@@ -298,11 +310,6 @@ void app_main(void)
             if (!cycle_read.isnk_elec){
                 printf("A\n"); // Break in between full ERT measurement
             }
-         
-            // ////// TIMING CODE START //////
-            // struct timeval tv_I;
-            // gettimeofday(&tv_I, NULL);
-            // int64_t time_us_I = (int64_t)tv_I.tv_sec * 1000000L + (int64_t)tv_I.tv_usec;
 
             // Cycle through each voltage measurement
             for (int elec_iter=0 ; elec_iter<NUM_ELECS ; elec_iter++)
@@ -346,13 +353,6 @@ void app_main(void)
 
 
             }
-
-            // ////// TIMING CODE FINISH //////
-            // struct timeval tv_F;
-            // gettimeofday(&tv_F, NULL);
-            // int64_t time_us_F = (int64_t)tv_F.tv_sec * 1000000L + (int64_t)tv_F.tv_usec;
-            // int64_t tv_D = time_us_F - time_us_I;
-            // printf("%lld\n", tv_D);
 
             // Print electrode measurements           
             for (int i=0; i<16; i++){

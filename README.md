@@ -1,4 +1,4 @@
-# Black Flat Sensor
+# Black Elastic Surface Pressure Sensor
 Black flat sensor is a project aimed at characterising carbon black silicone composites (and other piezoresistive conductive elastomers). The sensor system uses the principle of electrical impedance tomography (EIT) to recreate a resisitivty map of flat shape of piezoresisitive composite. We will be only using DC as we are solely interested in the resisitive qualities of the composite for now, hence we're using electrical resistivity tomography (ERT). The sensor has been created that contains 4 major parts:
 
 1) [ERT PCB hardware](/README.md#1---ert-pcb-hardware)

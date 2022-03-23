@@ -42,7 +42,7 @@ The basic electrode drive process is:
 - Bluetooth transmission of serial data
 - More drive modes: Pseudo polar, PP-PP
 - Nonense data checker (Throw error if data is very noisy or ADC saturated etc.)
-- Speed up measurement rate from 2Hz to 40Hz
+- Speed up measurement rate from 8Hz to 40Hz
 
 ## 3 - Reconstruction software
 EIDORS was used as the library for image reconstruction using the data gathered from the PCB. A reference measurement is taken from the material on start-up of the reconstruction program. The reference measurement is compared to a current measurement for change in resisitvity (\Delta R) image reconstruction.

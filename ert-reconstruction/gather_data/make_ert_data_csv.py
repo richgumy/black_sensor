@@ -50,18 +50,14 @@ def main(filename, comport):
 
     with open(filename, 'a', newline='') as csvfile:
         csv_data = csv.writer(csvfile, delimiter=',')
-
-        csv_data.writerow("UTC:", str(datetime.utcnow()))
-
+        csv_data.writerow(["UTC:", str(datetime.utcnow())])
         csv_data.writerow(["time [ms]", "data [mV]:"])
 
         ## Gather data
-        print("Gathering data...")
+        print("Gathering data... push Ctrl+C to stop")
         while(1):
                 raw_data = srl_dev.readline().decode()[:-2].split(',')
-
-                raw_data_timed = time.time().append(raw_data)
-
+                raw_data_timed = [time.time()] + raw_data
                 csv_data.writerow(raw_data_timed)
 
 
@@ -77,7 +73,6 @@ if __name__ == "__main__":
             input_comport = (sys.argv[2])
         else: 
             input_comport = ""
-        print("lesh")
         main(input_filename, input_comport)
     except Exception:
         print(traceback.format_exc())

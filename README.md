@@ -57,7 +57,7 @@ EIDORS was used as the library for image reconstruction using the data gathered 
 - Timestamped FEM and measurement data exported to CSV files.
 - Optimise reconstruction by porting all functionality to C++ or for use with a TPU/GPU.
 
-## 4 - Sensor domain parts
+## 4 - Sensor domain mechanical parts
 The rest of the physical system consists of:
 1. Composite material under test (MUT)
 2. MUT holder

@@ -41,7 +41,7 @@ end
 imdl = mk_common_model('f2c',16);
 
 % Setup serial connection with ERT device
-comport = "COM6";
+comport = "COM4";
 %if ert_serial.status == "open"
 %  fclose(ert_serial)
 %end

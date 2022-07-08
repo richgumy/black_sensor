@@ -40,18 +40,24 @@ def main(filename, comport):
         print("{} chosen".format(comport))
 
     srl_dev = serial.Serial(comport,115200,timeout=2)
-    print("Connecting to {}".format(comport)) 
+    print("Connecting to {}".format(comport))
 
+    ## Ask for current source value
+    Isrc_uA = input("What is the approx Isrc value [uA]? ")
 
     ## Setup CSV file
-    if (len(filename) == 0): filename = input("Filename? ")
+    if (len(filename) == 0): 
+        filename_pt1 = input("Test sample name? (e.g. redugraph1) ")
+        filename_pt2 = input("Test experiment name? ")
+        filename = filename_pt1 + "_" + filename_pt2
     
-    if (filename[-4:] != ".csv"): filename = filename+".csv"
+    if (filename[-4:] != ".csv"): filename = filename + ".csv"
 
     with open(filename, 'a', newline='') as csvfile:
         csv_data = csv.writer(csvfile, delimiter=',')
         csv_data.writerow(["UTC:", str(datetime.utcnow())])
-        csv_data.writerow(["time [ms]", "data [mV]:"])
+        csv_data.writerow(["Isrc:", Isrc_uA])
+        csv_data.writerow(["time [s]", "data [mV]:"])
 
         ## Gather data
         print("Gathering data... push Ctrl+C to stop")

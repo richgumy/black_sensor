@@ -1149,3 +1149,62 @@ time [ms],data [mV]:
 1647998947.3840597,208,180,203,201,200,383,-100,194,204,179,195,176,212,192,173,189,
 1647998947.3840597,173,169,164,211,189,202,285,-594,679,378,179,180,196,184,180,176,
 1647998947.399376,198,183,192,179,203,205,201,853,-659,237,275,203,211,187,205,182,
+UTC:,2022-07-08 03:04:30.766565
+time [ms],data [mV]:
+1657249470.766565,ets Jul 29 2019 12:21:46
+1657249470.766565,
+1657249470.7675617,rst:0x1 (POWERON_RESET),boot:0x33 (SPI_FAST_FLASH_BOOT)
+1657249470.7675617,configsip: 0, SPIWP:0xee
+1657249470.7685905,clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+1657249470.7695558,mode:DIO, clock div:2
+1657249470.7695558,load:0x3fff0030,len:6616
+1657249470.7695558,load:0x40078000,len:14780
+1657249470.7705536,ho 0 tail 12 room 4
+1657249470.7705536,load:0x40080400,len:3792
+1657249470.7705536,entry 0x40080694
+1657249470.771551,[0;32mI (29) boot: ESP-IDF v4.4-rc1-dirty 2nd stage bootloader[0m
+1657249470.7725477,[0;32mI (29) boot: compile time 13:17:38[0m
+1657249470.7725477,[0;32mI (29) boot: chip revision: 3[0m
+1657249470.7735455,[0;32mI (33) boot_comm: chip revision: 3, min. bootloader chip revision: 0[0m
+1657249470.7745452,[0;32mI (40) boot.esp32: SPI Speed      : 40MHz[0m
+1657249470.77554,[0;32mI (44) boot.esp32: SPI Mode       : DIO[0m
+1657249470.77554,[0;32mI (49) boot.esp32: SPI Flash Size : 8MB[0m
+1657249470.776537,[0;32mI (53) boot: Enabling RNG early entropy source...[0m
+1657249470.7775347,[0;32mI (59) boot: Partition Table:[0m
+1657249470.7785597,[0;32mI (62) boot: ## Label            Usage          Type ST Offset   Length[0m
+1657249470.7795596,[0;32mI (70) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+1657249470.7805545,[0;32mI (77) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+1657249470.7815518,[0;32mI (85) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+1657249470.7815518,[0;32mI (92) boot: End of partition table[0m
+1657249470.7825503,[0;32mI (96) boot_comm: chip revision: 3, min. application chip revision: 0[0m
+1657249470.783548,[0;32mI (103) esp_image: segment 0: paddr=00010020 vaddr=3f400020 size=09c5ch ( 40028) map[0m
+1657249470.784543,[0;32mI (126) esp_image: segment 1: paddr=00019c84 vaddr=3ffb0000 size=02494h (  9364) load[0m
+1657249470.7865107,[0;32mI (130) esp_image: segment 2: paddr=0001c120 vaddr=40080000 size=03ef8h ( 16120) load[0m
+1657249470.7875078,[0;32mI (139) esp_image: segment 3: paddr=00020020 vaddr=400d0020 size=18a74h (100980) map[0m
+1657249470.7885048,[0;32mI (177) esp_image: segment 4: paddr=00038a9c vaddr=40083ef8 size=08990h ( 35216) load[0m
+1657249470.7895024,[0;32mI (192) esp_image: segment 5: paddr=00041434 vaddr=50000000 size=00010h (    16) load[0m
+1657249470.790529,[0;32mI (199) boot: Loaded app from partition at offset 0x10000[0m
+1657249470.7915256,[0;32mI (199) boot: Disabling RNG early entropy source...[0m
+1657249470.7915256,[0;32mI (212) cpu_start: Pro cpu up.[0m
+1657249470.7925227,[0;32mI (212) cpu_start: Starting app cpu, entry point is 0x400810a8[0m
+1657249470.7935214,[0;32mI (0) cpu_start: App cpu up.[0m
+1657249470.7935214,[0;32mI (226) cpu_start: Pro cpu start user code[0m
+1657249470.7945166,[0;32mI (227) cpu_start: cpu freq: 160000000[0m
+1657249470.7945166,[0;32mI (227) cpu_start: Application information:[0m
+1657249470.795516,[0;32mI (231) cpu_start: Project name:     main[0m
+1657249470.796512,[0;32mI (236) cpu_start: App version:      3ff8875-dirty[0m
+1657249470.796512,[0;32mI (241) cpu_start: Compile time:     Jun 23 2022 13:17:09[0m
+1657249470.7975087,[0;32mI (247) cpu_start: ELF file SHA256:  97279f0fcb87e1f8...[0m
+1657249470.7985125,[0;32mI (253) cpu_start: ESP-IDF:          v4.4-rc1-dirty[0m
+1657249470.799503,[0;32mI (259) heap_init: Initializing. RAM available for dynamic allocation:[0m
+1657249470.800501,[0;32mI (266) heap_init: At 3FFAE6E0 len 00001920 (6 KiB): DRAM[0m
+1657249470.800501,[0;32mI (272) heap_init: At 3FFB2DB8 len 0002D248 (180 KiB): DRAM[0m
+1657249470.8014991,[0;32mI (278) heap_init: At 3FFE0440 len 00003AE0 (14 KiB): D/IRAM[0m
+1657249470.8024952,[0;32mI (285) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+1657249470.8034678,[0;32mI (291) heap_init: At 4008C888 len 00013778 (77 KiB): IRAM[0m
+1657249470.8044627,[0;32mI (299) spi_flash: detected chip: gd[0m
+1657249470.8044627,[0;32mI (302) spi_flash: flash io: dio[0m
+1657249470.80546,[0;32mI (307) cpu_start: Starting scheduler on PRO CPU.[0m
+1657249470.8064575,[0;32mI (0) cpu_start: Starting scheduler on APP CPU.[0m
+1657249470.8064575,MODE = CALIBRATE
+1657249470.8064575,A

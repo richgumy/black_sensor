@@ -56,7 +56,7 @@ static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MOD
 // ADC
 #define ADC_CS_PIN 15
 #define MAX_16BIT_VAL   65536
-#define NO_ADC_SAMPLES   10         // Multisampling
+#define NO_ADC_SAMPLES   1         // Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -233,7 +233,7 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 }
 
 uint32_t conv_adc_readingLTC1864L(uint8_t data[]) {
-    // Converts arbitrary analogue unit to readable zero'd value
+    // Converts arbitrary analogue unit to readable mV value
     uint32_t conv_offset = 0;//32533; // Calibrate for each board (i.e. V_GND)
     uint32_t conv_scale = 65536;
     uint32_t conv_data = 0;
@@ -242,7 +242,7 @@ uint32_t conv_adc_readingLTC1864L(uint8_t data[]) {
         conv_data = (conv_data << 8) + data[i];      
     }
 
-    conv_data = conv_data * 5 * 1000 / conv_scale ; // Arb value with ref to VGND
+    conv_data = conv_data * 5 * 10000 / conv_scale ; // mV conversion
 
     return conv_data;
 }
@@ -279,7 +279,7 @@ void print_vmeas_csv_frmt(struct Cycle_meas measurements, uint8_t num_elecs)
 {
     // Print electrode measurements           
     for (int i=0; i<num_elecs; i++){
-        printf("%hd,",measurements.vm[i].voltage);
+        printf("%u,",measurements.vm[i].voltage);
     }
     printf("\n");
 }

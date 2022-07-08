@@ -57,7 +57,7 @@ def main(filename, comport):
         csv_data = csv.writer(csvfile, delimiter=',')
         csv_data.writerow(["UTC:", str(datetime.utcnow())])
         csv_data.writerow(["Isrc:", Isrc_uA])
-        csv_data.writerow(["time [s]", "data [mV]:"])
+        csv_data.writerow(["time [s]", "data*0.1 [mV]:"])
 
         ## Gather data
         print("Gathering data... push Ctrl+C to stop")

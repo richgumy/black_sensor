@@ -68,11 +68,12 @@ import matplotlib.pyplot as plt
         
         
 ## SPYDER VERSION BELOW ##
-input_filename = "res1k3_cal3.csv"
+input_filename = "res1k3_cal13.csv"
 Isrc_uA =  0
 ert_scans = []
-ert_table = np.zeros((16,16))
-t_arr = np.zeros((16,))
+t_scans = []
+ert_scan = np.zeros((16,16))
+t_scan = np.zeros(16)
 with open(input_filename, 'r', newline='') as csvfile:
     print("woo opend doc: " + input_filename)
     data = csv.reader(csvfile, delimiter=',')
@@ -80,34 +81,32 @@ with open(input_filename, 'r', newline='') as csvfile:
     i = 0
     intrascan_indx = 0
     interscan_indx = 0
-    for row in data:
+    for i, row in enumerate(data):
         # print(row)
-        if i < 3:
+        if i < 4:
             if i == 1:
                 Isrc_uA = row[1]
                 print(Isrc_uA+" uA Isrc")
         else:
-            if row[1] == 'A': ### NOT LOGGING PROPERLY INDEXING FUCKY
+            if row[1] == 'A':
+                ert_scans.append(ert_scan.copy())
+                t_scans.append(t_scan)
                 intrascan_indx = 0
                 interscan_indx = interscan_indx + 1
-                ert_scans.append(ert_table)
             if row[1] != 'A' and row[1] != '':
-                # print(row[0])
-                print(interscan_indx)
-                print(row[1:17])
-                t_arr[intrascan_indx] = float(row[0])
-                ert_table[intrascan_indx][0:16] = np.array(row[1:17],dtype=float)
+                t_scan[intrascan_indx] = float(row[0])
+                ert_scan[intrascan_indx][0:16] = row[1:17]
                 intrascan_indx = intrascan_indx + 1
-        i = i + 1
-print(ert_table)
+                
+
 ert_scans = np.array(ert_scans)
-print(ert_scans)
-# for j in range(16):
-histo = []
-for i in range(len(ert_scans)):
-    print(i)
-    histo.append(ert_scans[i][0][0])
-plt.hist(histo)
+for j in range(1,4):
+    histo = []
+    for i in range(len(ert_scans)):
+        histo.append(ert_scans[i][0][j]/10)
+    print("stdev:",round(np.std(histo)*1000)," uV")
+    print("median:",np.median(histo), " mV")
+    plt.hist(histo,range=(np.median(histo)-round(np.std(histo)/8),np.median(histo)+round(np.std(histo)/8)))
 plt.show()
 
        

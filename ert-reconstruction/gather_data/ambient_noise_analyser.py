@@ -68,7 +68,7 @@ import matplotlib.pyplot as plt
         
         
 ## SPYDER VERSION BELOW ##
-input_filename = "res1k3_cal13.csv"
+input_filename = "redugraph1_cal4.csv"
 Isrc_uA =  0
 ert_scans = []
 t_scans = []
@@ -100,13 +100,18 @@ with open(input_filename, 'r', newline='') as csvfile:
                 
 
 ert_scans = np.array(ert_scans)
-for j in range(1,4):
+for j in range(0,15):
     histo = []
     for i in range(len(ert_scans)):
         histo.append(ert_scans[i][0][j]/10)
-    print("stdev:",round(np.std(histo)*1000)," uV")
-    print("median:",np.median(histo), " mV")
+    # print("Electrode %d" % j)
+    # print("stdev:",round(np.std(histo)*1000)," uV")
+    # print("median:",np.median(histo), " mV")
+    CV = (float(np.std(histo))/float(np.median(histo)))
+    # print("CV: %f" % CV)
+    print(j,',',np.std(histo),',',np.median(histo),',',CV)
     plt.hist(histo,range=(np.median(histo)-round(np.std(histo)/8),np.median(histo)+round(np.std(histo)/8)))
+    plt.figure()
 plt.show()
 
        

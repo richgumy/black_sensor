@@ -37,7 +37,7 @@ The PCB firmware is all written in C for the ESP32-WROOM32E SoC. The firmware ap
 #define PSEUDO_POLAR 2
 #define PP_PP 3 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
 
-static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
+static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
 // GPIO
     // MUX
@@ -56,7 +56,7 @@ static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MOD
 // ADC
 #define ADC_CS_PIN 15
 #define MAX_16BIT_VAL   65536
-#define NO_ADC_SAMPLES   1         // Multisampling
+#define NO_ADC_SAMPLES   10         // Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -242,7 +242,7 @@ uint32_t conv_adc_readingLTC1864L(uint8_t data[]) {
         conv_data = (conv_data << 8) + data[i];      
     }
 
-    conv_data = conv_data * 5 * 10000 / conv_scale ; // mV conversion
+    // conv_data = conv_data * 5 * 10000 / conv_scale ; // mV conversion
 
     return conv_data;
 }

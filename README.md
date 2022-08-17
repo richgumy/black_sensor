@@ -1,5 +1,5 @@
 # Black Elastic Surface Pressure Sensor
-Black sensor is a project aimed at characterising carbon black silicone composites (and other piezoresistive conductive elastomers). The sensor system uses the principle of electrical impedance tomography (EIT) to recreate a resisitivty map of flat shape of piezoresisitive composite. We will be only using DC as we are solely interested in the resisitive qualities of the composite for now, hence we're using electrical resistivity tomography (ERT). The sensor has been created that contains 4 major parts:
+Black sensor is a project aimed at characterising carbon black silicone composites (and other piezoresistive conductive particle elastomer composites). This material can also be used as a pressure sensitive skin. The sensor system uses the principle of electrical impedance tomography (EIT) to reconstruct a resisitivty map of a flat sheet of piezoresisitive composite (characteristic limits of material yet to be determined. Such as min/max inter-electrode resisitvity and gauge factor) We will be only using DC as we are solely interested in the resisitive qualities of the composite for now, hence we're using electrical resistivity tomography (ERT). The sensor has been created that contains 4 major parts:
 
 1) [ERT PCB hardware](/README.md#1---ert-pcb-hardware)
 2) [ERT PCB firmware](/README.md#2---ert-pcb-firmware)

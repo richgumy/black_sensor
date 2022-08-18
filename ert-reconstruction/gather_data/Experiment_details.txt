@@ -1,0 +1,4 @@
+i_src = 16.67uA?
+material thickness <= 4.5mm
+
+Air bubbles in some samples..

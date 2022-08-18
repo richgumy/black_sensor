@@ -1,5 +1,5 @@
-# Black Flat Sensor
-Black flat sensor is a project aimed at characterising carbon black silicone composites (and other piezoresistive conductive elastomers). The sensor system uses the principle of electrical impedance tomography (EIT) to recreate a resisitivty map of flat shape of piezoresisitive composite. We will be only using DC as we are solely interested in the resisitive qualities of the composite for now, hence we're using electrical resistivity tomography (ERT). The sensor has been created that contains 4 major parts:
+# Black Elastic Surface Pressure Sensor
+Black sensor is a project aimed at characterising carbon black silicone composites (and other piezoresistive conductive particle elastomer composites). This material can also be used as a pressure sensitive skin. The sensor system uses the principle of electrical impedance tomography (EIT) to reconstruct a resisitivty map of a flat sheet of piezoresisitive composite (characteristic limits of material yet to be determined. Such as min/max inter-electrode resisitvity and gauge factor) We will be only using DC as we are solely interested in the resisitive qualities of the composite for now, hence we're using electrical resistivity tomography (ERT). The sensor has been created that contains 4 major parts:
 
 1) [ERT PCB hardware](/README.md#1---ert-pcb-hardware)
 2) [ERT PCB firmware](/README.md#2---ert-pcb-firmware)
@@ -42,7 +42,7 @@ The basic electrode drive process is:
 - Bluetooth transmission of serial data
 - More drive modes: Pseudo polar, PP-PP
 - Nonense data checker (Throw error if data is very noisy or ADC saturated etc.)
-- Speed up measurement rate from 2Hz to 40Hz
+- Speed up measurement rate from 8Hz to 40Hz
 
 ## 3 - Reconstruction software
 EIDORS was used as the library for image reconstruction using the data gathered from the PCB. A reference measurement is taken from the material on start-up of the reconstruction program. The reference measurement is compared to a current measurement for change in resisitvity (\Delta R) image reconstruction.
@@ -57,7 +57,7 @@ EIDORS was used as the library for image reconstruction using the data gathered 
 - Timestamped FEM and measurement data exported to CSV files.
 - Optimise reconstruction by porting all functionality to C++ or for use with a TPU/GPU.
 
-## 4 - Sensor domain parts
+## 4 - Sensor domain mechanical parts
 The rest of the physical system consists of:
 1. Composite material under test (MUT)
 2. MUT holder
@@ -70,6 +70,5 @@ The material we are using is a carbon black nanoparticle silicone rubber composi
 - Standard test domains and MUT holder/electrode configurations
 
 With all of this sensor in place and ready to obtain data the next step is to apply it to something!
-
 
 

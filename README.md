@@ -6,7 +6,7 @@ Black sensor is a project aimed at characterising carbon black silicone composit
 3) [Reconstruction software](/README.md#3---reconstruction-software)
 4) [Sensor domain parts](/README.md#4---sensor-domain-parts)
 
-A low cost PCB has been developed to capture the ERT data in reatime, which is streamed to a another computer to run a resistivity image reconstruction algorithm.
+A low cost circuit has been developed to capture the ERT data in reatime, which is streamed to a another computer to run a resistivity image reconstruction algorithm.
 
 
 <img src="/media/architecture.png" width="600">

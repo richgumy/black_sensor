@@ -1,4 +1,7 @@
 /*
+
+***UNSTABLE VERSION***
+
 ERT program!
 
 The PCB firmware is all written in C for the ESP32-WROOM32E SoC. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB-UART serial connection. The basic electrode drive process is:
@@ -27,7 +30,7 @@ The PCB firmware is all written in C for the ESP32-WROOM32E SoC. The firmware ap
 
 #include "sdkconfig.h"
 
-#define V_OFFSET 2429 // Virtual ground for ADC.
+#define V_OFFSET 2429 // Virtual ground for ADC. (Not in ERT PCB v1.2) 
 #define NUM_ELECS 16 // Number of electrodes in ERT setup
 
 // ERT modes
@@ -37,7 +40,7 @@ The PCB firmware is all written in C for the ESP32-WROOM32E SoC. The firmware ap
 #define PSEUDO_POLAR 2
 #define PP_PP 3 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
 
-static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
+static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
 // GPIO
     // MUX
@@ -336,10 +339,13 @@ void app_main(void)
 
                  // Send SPI mux cmd
                 send_spi_cmd(elec_index, MUX_CS_PIN);
+
+                // vTaskDelay(1000 / portTICK_PERIOD_MS); // pause for 1s while switching of MUXs happens?
             
                 // ADC SPI read
                 uint32_t spi_read = 0;
                 uint32_t spi_read_avg = 0;
+                send_spi_cmd(spi_read_ADC, ADC_CS_PIN); // Discard ADC reading from previous cycle
                 for (int i = 0; i < NO_ADC_SAMPLES; i++) {
                     
                     send_spi_cmd(spi_read_ADC, ADC_CS_PIN);
@@ -349,6 +355,8 @@ void app_main(void)
                     spi_read_avg += spi_read;
                 }
                 spi_read_avg /= NO_ADC_SAMPLES;
+
+                // printf("Isrc,Isnk:%d,%d.Vp,Vn:%d,%d\n", isrc_elec, isnk_elec, vp_elec, vn_elec);
 
                 uint16_t spi_read_avg_16b = spi_read_avg;
                 v_read.voltage = spi_read_avg_16b;
@@ -363,6 +371,11 @@ void app_main(void)
                 elec_index[1] = v_elecs;
 
                 if (ert_mode == CALIBRATE) {
+                    // printf("%u\n",isrc_elec);
+                    for (int i=0; i < 0; i++){
+                        vTaskDelay(1000 / portTICK_PERIOD_MS);
+                        printf("..%u\n",10-i);
+                    }
                     // Calibration mode: measure impedance between each electrode
                     isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
                     isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);

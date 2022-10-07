@@ -39,7 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/esp-idf/esp_system/port/soc/esp32/cmake_install.cmake")
+  include("C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/esp-idf/esp_system/port/soc/esp32/cmake_install.cmake")
 
 endif()
 

@@ -1,13 +1,13 @@
 # Target labels
  bootloader
 # Source files and their labels
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader-complete.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
-C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/CMakeFiles/bootloader-complete.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

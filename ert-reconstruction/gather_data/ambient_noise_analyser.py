@@ -5,10 +5,8 @@ PROGRAM DESC: From ERT data gathered complete an analysis of the noise seen from
 Analysis includes:
 - Histogram for each ADC measurement
 - Stats about ADC measurement std dev
-
 USAGE: python make_ert_data_csv.py csv_filename comport
 E.G. "python make_ert_data_csv.py data_capture COM6"
-
 """
 
 import csv
@@ -68,7 +66,7 @@ import matplotlib.pyplot as plt
         
         
 ## SPYDER VERSION BELOW ##
-input_filename = "redugraph1_cal4.csv"
+input_filename = "no_batt.csv"
 Isrc_uA =  0
 ert_scans = []
 t_scans = []
@@ -100,10 +98,10 @@ with open(input_filename, 'r', newline='') as csvfile:
                 
 
 ert_scans = np.array(ert_scans)
-for j in range(0,15):
+for j in range(0,16):
     histo = []
     for i in range(len(ert_scans)):
-        histo.append(ert_scans[i][0][j]/10)
+        histo.append(ert_scans[i][0][j])
     # print("Electrode %d" % j)
     # print("stdev:",round(np.std(histo)*1000)," uV")
     # print("median:",np.median(histo), " mV")

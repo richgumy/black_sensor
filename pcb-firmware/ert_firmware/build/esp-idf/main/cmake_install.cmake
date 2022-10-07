@@ -1,4 +1,4 @@
-# Install script for directory: C:/esp-idf-v4.3.2/examples/black_sensor/pcb-firmware/ert_firmware/main
+# Install script for directory: C:/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code/black_sensor/pcb-firmware/ert_firmware/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

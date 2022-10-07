@@ -3,15 +3,6 @@
 ***UNSTABLE VERSION***
 
 ERT program!
-
-The PCB firmware is all written in C for the ESP32-WROOM32E SoC. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB-UART serial connection. The basic electrode drive process is:
-
-1. Apply current to 2 electrodes
-2. Measure voltage across 16 electrode pairs
-3. Send voltage measurement data via serial
-4. Iterate to next set of current electrodes.
-5. Back to step 1.
-
 */
 #include <stdio.h>
 #include <string.h>
@@ -48,18 +39,18 @@ static const uint8_t ert_mode = CALIBRATE; // <- SET ELECTRODE DRIVE PATTERN MOD
 #define EN_MUX_VGND 17
 #define EN_MUX_VMEASP 4
 #define EN_MUX_VMEASN 16
-#define MUX_CS_PIN 2
+#define MUX_CS_PIN 15
     // LED
-#define EN_LED 19
+#define EN_LED 18
 #define SW_LED 21
 
 #define GPIO_OUTPUT_PIN_SEL  ((1ULL<<SW_LED) |(1ULL<<EN_MUX_ISRC) | (1ULL<<EN_MUX_VGND) | (1ULL<<EN_MUX_VMEASP) | (1ULL<<EN_MUX_VMEASN) | (1ULL<<EN_LED))
 #define GPIO_INPUT_PIN_SEL  (1ULL<<SW_LED)
 
 // ADC
-#define ADC_CS_PIN 15
+#define ADC_CS_PIN 19
 #define MAX_16BIT_VAL   65536
-#define NO_ADC_SAMPLES   10         // Multisampling
+#define NO_ADC_SAMPLES   4         // Multisampling
 
 // Electrodes
 static const uint8_t max_elecs = 128; // Maximum number of electrodes
@@ -235,23 +226,18 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
     // spi_bus_free(HSPI_HOST);
 }
 
-uint32_t conv_adc_readingLTC1864L(uint8_t data[]) {
-    // Converts arbitrary analogue unit to readable mV value
-    uint32_t conv_offset = 0;//32533; // Calibrate for each board (i.e. V_GND)
-    uint32_t conv_scale = 65536;
-    uint32_t conv_data = 0;
+int32_t conv_adc_readingLTC1864L(uint8_t data[]) {
+    // Converts arbitrary analogue unit to readable zero'd value
+    int32_t conv_offset = 32533; // Calibrate for each board (i.e. V_GND)
+    int32_t conv_data = 0;
 
     for (int i=0;i<2;i++){
         conv_data = (conv_data << 8) + data[i];      
     }
 
-    // conv_data = conv_data * 5 * 10000 / conv_scale ; // mV conversion
+    conv_data = -(conv_data - conv_offset); // Arb value with ref to VGND
 
     return conv_data;
-}
-
-uint32_t to_resistance(uint32_t current_src_uA, uint32_t v_data_mV) {
-    return v_data_mV * 1000 / current_src_uA;
 }
 
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
@@ -282,7 +268,7 @@ void print_vmeas_csv_frmt(struct Cycle_meas measurements, uint8_t num_elecs)
 {
     // Print electrode measurements           
     for (int i=0; i<num_elecs; i++){
-        printf("%u,",measurements.vm[i].voltage);
+        printf("%hd,",measurements.vm[i].voltage);
     }
     printf("\n");
 }
@@ -343,9 +329,8 @@ void app_main(void)
                 // vTaskDelay(1000 / portTICK_PERIOD_MS); // pause for 1s while switching of MUXs happens?
             
                 // ADC SPI read
-                uint32_t spi_read = 0;
-                uint32_t spi_read_avg = 0;
-                send_spi_cmd(spi_read_ADC, ADC_CS_PIN); // Discard ADC reading from previous cycle
+                int32_t spi_read = 0;
+                int32_t spi_read_avg = 0;
                 for (int i = 0; i < NO_ADC_SAMPLES; i++) {
                     
                     send_spi_cmd(spi_read_ADC, ADC_CS_PIN);
@@ -356,9 +341,7 @@ void app_main(void)
                 }
                 spi_read_avg /= NO_ADC_SAMPLES;
 
-                // printf("Isrc,Isnk:%d,%d.Vp,Vn:%d,%d\n", isrc_elec, isnk_elec, vp_elec, vn_elec);
-
-                uint16_t spi_read_avg_16b = spi_read_avg;
+                int16_t spi_read_avg_16b = spi_read_avg;
                 v_read.voltage = spi_read_avg_16b;
                 // spi_read_ADC_arr[vp_elec] = spi_read_avg_16b;
 
@@ -379,15 +362,14 @@ void app_main(void)
                     // Calibration mode: measure impedance between each electrode
                     isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
                     isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
-                    // vTaskDelay(1000 / portTICK_PERIOD_MS);
                 }
                 i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
                 elec_index[0] = i_elecs;
 
-                // vTaskDelay(1000 / portTICK_PERIOD_MS);
+
             }
 
-            print_vmeas_csv_frmt(cycle_read, NUM_ELECS);
+            print_vmeas_csv_frmt(cycle_read, NUM_ELECS)
             
             if (ert_mode == ADJACENT) {
                 // Adjacent mode: cycle through current source electrodes

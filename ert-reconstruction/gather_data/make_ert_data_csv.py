@@ -3,7 +3,7 @@ FILE: make_ert_data_csv.py
 AUTHOR: R Ellingham
 PROGRAM DESC: Gather serial data from ERT sensor in real time. The parameters measured are: 1. Voltage measurements in order from ERT system and 2. Time stamped the data when recieved by the program (Recieving timestamp from ERT sensor would slow measurement too much, but possible)
 
-USAGE: python make_ert_data_csv.py csv_filename comport
+USAGE: python make_ert_data_csv.py csv_filename ERT_xcomport
 E.G. "python make_ert_data_csv.py data_capture COM6"
 
 """
@@ -11,8 +11,17 @@ E.G. "python make_ert_data_csv.py data_capture COM6"
 import csv
 import serial
 import serial.tools.list_ports as list_serial_ports
+from Phidget22.Phidget import *
+from Phidget22.Devices.VoltageRatioInput import *
+
 from datetime import datetime
 import time
+
+def onVoltageRatioChange(self, voltageRatio):
+    # print("VoltageRatio: " + str(voltageRatio))
+    mass_g = voltageRatio*4.94462e+6 + 70.13
+    self.voltage_V = voltageRatio
+    self.mass_g = mass_g
 
 def list_serial_devices():
     """
@@ -29,6 +38,12 @@ def list_serial_devices():
     return devs_list
 
 def main(filename, comport):
+    ## Setup loadcell(bridge) device
+    loadcell = VoltageRatioInput()
+    loadcell.setOnVoltageRatioChangeHandler(onVoltageRatioChange)
+    loadcell.openWaitForAttachment(5000)
+    loadcell.setDataRate(8)
+
     ## Setup serial connection
     if (len(comport) == 0):
         # get list of comports
@@ -40,30 +55,30 @@ def main(filename, comport):
         print("{} chosen".format(comport))
 
     srl_dev = serial.Serial(comport,115200,timeout=2)
-    print("Connecting to {}".format(comport))
+    print("Connecting to {}".format(comport)) 
 
-    ## Ask for current source value
-    Isrc_uA = input("What is the approx Isrc value [uA]? ")
 
     ## Setup CSV file
-    if (len(filename) == 0): 
-        filename_pt1 = input("Test sample name? (e.g. redugraph1) ")
-        filename_pt2 = input("Test experiment name? ")
-        filename = filename_pt1 + "_" + filename_pt2
+    if (len(filename) == 0): filename = input("Filename? ")
     
-    if (filename[-4:] != ".csv"): filename = filename + ".csv"
+    if (filename[-4:] != ".csv"): filename = filename+".csv"
 
     with open(filename, 'a', newline='') as csvfile:
         csv_data = csv.writer(csvfile, delimiter=',')
         csv_data.writerow(["UTC:", str(datetime.utcnow())])
-        csv_data.writerow(["Isrc:", Isrc_uA])
-        csv_data.writerow(["time [s]", "data*0.1 [mV]:"])
+        csv_data.writerow(["time_pc [s]", "Mass [g]", "time_mcu[ms]", "data [mV]:"])
+
+        # Zero time
+        t_s = time.time()
 
         ## Gather data
         print("Gathering data... push Ctrl+C to stop")
         while(1):
                 raw_data = srl_dev.readline().decode()[:-2].split(',')
-                raw_data_timed = [time.time()] + raw_data
+                # print(loadcell.mass_g)
+                raw_data_timed = [time.time()-t_s] + [loadcell.mass_g] + raw_data
+                # raw_data_timed = [time.time()-t_s] + [0] + raw_data
+                # print(loadcell.mass_g)
                 csv_data.writerow(raw_data_timed)
 
 

@@ -1539,16 +1539,6 @@ rule C_COMPILER____idf_main_
 
 
 #############################################
-# Rule for compiling CXX files.
-
-rule CXX_COMPILER____idf_main_
-  depfile = $DEP_FILE
-  deps = gcc
-  command = C:\Users\rel80\.espressif\tools\xtensa-esp32-elf\esp-2021r2-patch2-8.4.0\xtensa-esp32-elf\bin\xtensa-esp32-elf-g++.exe $DEFINES $INCLUDES $FLAGS -MD -MT $out -MF $DEP_FILE -o $out -c $in
-  description = Building CXX object $out
-
-
-#############################################
 # Rule for linking C static library.
 
 rule C_STATIC_LIBRARY_LINKER____idf_main_
@@ -1558,29 +1548,10 @@ rule C_STATIC_LIBRARY_LINKER____idf_main_
 
 
 #############################################
-# Rule for compiling CXX files.
-
-rule CXX_COMPILER____idf_esp32_spi_
-  depfile = $DEP_FILE
-  deps = gcc
-  command = C:\Users\rel80\.espressif\tools\xtensa-esp32-elf\esp-2021r2-patch2-8.4.0\xtensa-esp32-elf\bin\xtensa-esp32-elf-g++.exe $DEFINES $INCLUDES $FLAGS -MD -MT $out -MF $DEP_FILE -o $out -c $in
-  description = Building CXX object $out
-
-
-#############################################
-# Rule for linking C static library.
-
-rule C_STATIC_LIBRARY_LINKER____idf_esp32_spi_
-  command = cmd.exe /C "$PRE_LINK && C:\Users\rel80\.espressif\tools\cmake\3.20.3\bin\cmake.exe -E rm -f $TARGET_FILE && C:\Users\rel80\.espressif\tools\xtensa-esp32-elf\esp-2021r2-patch2-8.4.0\xtensa-esp32-elf\bin\xtensa-esp32-elf-ar.exe qc $TARGET_FILE $LINK_FLAGS $in && C:\Users\rel80\.espressif\tools\xtensa-esp32-elf\esp-2021r2-patch2-8.4.0\xtensa-esp32-elf\bin\xtensa-esp32-elf-ranlib.exe $TARGET_FILE && $POST_BUILD"
-  description = Linking C static library $TARGET_FILE
-  restat = $RESTAT
-
-
-#############################################
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = C:\Users\rel80\.espressif\tools\cmake\3.20.3\bin\cmake.exe --regenerate-during-build -SC:\esp-idf-v4.3.2\examples\black_sensor\pcb-firmware\ert_firmware -BC:\esp-idf-v4.3.2\examples\black_sensor\pcb-firmware\ert_firmware\build
+  command = C:\Users\rel80\.espressif\tools\cmake\3.20.3\bin\cmake.exe --regenerate-during-build -S"C:\Users\rel80\OneDrive - University of Canterbury\Postgrad\6. Projects\2. Pressure sensor array\1.0 Code\black_sensor\pcb-firmware\ert_firmware" -B"C:\Users\rel80\OneDrive - University of Canterbury\Postgrad\6. Projects\2. Pressure sensor array\1.0 Code\black_sensor\pcb-firmware\ert_firmware\build"
   description = Re-running CMake...
   generator = 1
 

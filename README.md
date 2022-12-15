@@ -27,7 +27,7 @@ All of the files to create the hardware are given as raw kicad files. All of the
 - Lower power MCU
 
 ## 2 - ERT PCB firmware
-The PCB firmware is all written in C for the ESP32-WROOM SoC. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB UART serial connection.
+The PCB firmware is all written in C for the ESP32-WROOM SoC connected to a custom 'ERT PCB'. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB UART serial connection.
 The basic electrode drive process is:
 1. Apply current to 2 electrodes
 2. Measure voltage across 16 electrode pairs

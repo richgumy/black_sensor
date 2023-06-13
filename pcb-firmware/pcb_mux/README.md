@@ -2,11 +2,20 @@
 
 Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern. 
 
-## The process
-Each iteration of the injection pattern is trigged externally by a ?? edge. This will be driven by the SMU taking the measruements so that as soon as sufficient measurements have been taken the next step in the injection pattern will be executed.
+| **Signal** | **ESP-WROOM32 Pin** | **ESP32-C3 Pin** |
+|------------|---------------------|------------------|
+| MUX_EN     |          4          |         4        |
+| MUX_CS     |          2          |         2        |
+| MUX_COPI   |          13         |        13        |
+| MUX_CLK    |          14         |        12        |
+ 
+## Command set
+To change the state of the PCB MUX circuit it must receive certain characters over serial UART. 
 
-In the 'Digital I/O' section of the [Keithley 2600BS datasheet](Keithley-2600BS-901-01E_Jan2019_RefManual.pdf)
+Command prompts for the PCB_MUX setup sent over UART:
 
+    i = iterate electrodes (in typical EIT adjacent pattern)
+    g = get current electrode state
+    c = get iteration (reading) count
 
-
-
+*Upload using ESP-IDF or similar*

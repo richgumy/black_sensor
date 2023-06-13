@@ -3,10 +3,9 @@ FILE: main.c
 PROJECT: PCB MUX
 AUTHOR: R Ellingham
 DATE MODIFIED: May 2023
-PROGRAM DESC: Code to mux a current source and voltage measurements for 
-Electrical Impedance Tomography using an adjacent electrode current injection pattern
-
-
+PROGRAM DESC: Code to multiplex a current source and voltage measurements for 
+Electrical Impedance Tomography using an adjacent electrode current injection pattern. 
+Using an ESP32 to send SPI commands to four multiplexers.
 */
 
 #include <inttypes.h>
@@ -21,11 +20,19 @@ Electrical Impedance Tomography using an adjacent electrode current injection pa
 #include <esp_log.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/uart.h"
 
-#define ESP_INR_FLAG_DEFAULT 0
-#define LED_PIN  27
-#define PUSH_BUTTON_PIN  33
 
+// Define all UART intr realted params
+static const char *TAG = "uart_events";
+
+#define EX_UART_NUM UART_NUM_0
+#define BUF_SIZE (1024)
+#define RD_BUF_SIZE (BUF_SIZE)
+
+static QueueHandle_t uart0_queue;
+
+// Electrode globals
 #define NUM_ELECS 16 // Number of electrodes in ERT setup
 static uint8_t isnk_elec = 1;
 static uint8_t isrc_elec = 0;
@@ -37,12 +44,19 @@ static uint8_t reading_count = 0;
 #define EN_MUX_ALL 4
 #define GPIO_OUTPUT_PIN_SEL  ((1ULL<<EN_MUX_ALL))
 
+// ESP32 WROOM32 (DOWD) pins
 #define MUX_CS 2
 #define MUX_CLK 14
 #define MUX_COPI 13
-#define MUX_CIPO 12
+#define MUX_CIPO 12 // not used
+#define SPI_HOST_ID HSPI_HOST
 
-TaskHandle_t ISR = NULL;
+// // ESP32-C3 pins
+// #define MUX_CS 2
+// #define MUX_CLK 12
+// #define MUX_COPI 13
+// #define MUX_CIPO 11 // not used
+// #define SPI_HOST_ID SPI2_HOST
 
 void setup_all_gpio() {
     // output pins
@@ -69,7 +83,7 @@ void send_spi_cmd_init(void) {
 	bus_config.miso_io_num = MUX_CIPO;
 	bus_config.quadwp_io_num = -1; // Not used
 	bus_config.quadhd_io_num = -1; // Not used
-    spi_bus_initialize(HSPI_HOST, &bus_config, 1);
+    spi_bus_initialize(SPI_HOST_ID, &bus_config, 1);
 }
 
 void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
@@ -134,57 +148,142 @@ uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
     }
 }
 
-void IRAM_ATTR button_isr_handler(void *arg){
-  xTaskResumeFromISR(ISR);
-}
-
-void interrupt_task(void *arg){
-  while(1){
-    vTaskSuspend(NULL);
-    printf("You interrupted me!\n");
+void iter_elecs_adj(void){
+    // Iterates electrode pattern for adjacent EIT electrode drive sequence
     reading_count++;
     isnk_elec = iter_elec(1,isnk_elec,NUM_ELECS);
     isrc_elec = iter_elec(1,isrc_elec,NUM_ELECS);
-    if (reading_count == NUM_ELECS-1) {
+    if (reading_count == NUM_ELECS) {
         reading_count = 0;
         vn_elec = iter_elec(1,vn_elec,NUM_ELECS);
         vp_elec = iter_elec(1,vp_elec,NUM_ELECS);
     }
-  }
 }
+
+static void uart_event_task(void *pvParameters)
+{
+    /*
+    Command prompt for the PCB_MUX setup.
+    Cmds sent over UART:
+    i = iterate electrodes
+    g = get current electrode state
+    c = get iteration (reading) count
+    */ 
+    uart_event_t event;
+    size_t buffered_size;
+    uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
+    for(;;) {
+        //Waiting for UART event.
+        if(xQueueReceive(uart0_queue, (void * )&event, (TickType_t)portMAX_DELAY)) {
+            bzero(dtmp, RD_BUF_SIZE);
+            ESP_LOGI(TAG, "uart[%d] event:", EX_UART_NUM);
+            switch(event.type) {
+                //Event of UART receving data
+                /*We'd better handler data event fast, there would be much more data events than
+                other types of events. If we take too much time on data event, the queue might
+                be full.*/
+                case UART_DATA:
+                    ESP_LOGI(TAG, "\n[UART DATA SZ]: %d", event.size);
+                    uart_read_bytes(EX_UART_NUM, dtmp, event.size, portMAX_DELAY);
+                    ESP_LOGI(TAG, "[DATA EVT]: %c", (char)(dtmp[0]));
+                    uart_write_bytes(EX_UART_NUM, (const char*) dtmp, event.size);
+                    if (dtmp[0] == (uint8_t)('i')) {
+                        // ITERATE ELECTRODE PATTERN
+                        iter_elecs_adj(); 
+                        ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
+                    }
+                    else if (dtmp[0] == (uint8_t)('g')) {
+                        // GET ELECTRODE STATE
+                        printf("isrc%d,isnk%d,vn%d,vp%d\n", isnk_elec, isrc_elec, vn_elec, vp_elec);
+                    }
+                    else if (dtmp[0] == (uint8_t)('c')) {
+                        // GET ITERATION COUNT
+                        ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
+                        printf("%d", reading_count);
+                    break;
+                    }
+                //Event of HW FIFO overflow detected
+                case UART_FIFO_OVF:
+                    ESP_LOGI(TAG, "hw fifo overflow");
+                    // If fifo overflow happened, you should consider adding flow control for your application.
+                    // The ISR has already reset the rx FIFO,
+                    // As an example, we directly flush the rx buffer here in order to read more data.
+                    uart_flush_input(EX_UART_NUM);
+                    xQueueReset(uart0_queue);
+                    break;
+                //Event of UART ring buffer full
+                case UART_BUFFER_FULL:
+                    ESP_LOGI(TAG, "ring buffer full");
+                    // If buffer full happened, you should consider encreasing your buffer size
+                    // As an example, we directly flush the rx buffer here in order to read more data.
+                    uart_flush_input(EX_UART_NUM);
+                    xQueueReset(uart0_queue);
+                    break;
+                //Event of UART RX break detected
+                case UART_BREAK:
+                    ESP_LOGI(TAG, "uart rx break");
+                    break;
+                //Event of UART parity check error
+                case UART_PARITY_ERR:
+                    ESP_LOGI(TAG, "uart parity error");
+                    break;
+                //Event of UART frame error
+                case UART_FRAME_ERR:
+                    ESP_LOGI(TAG, "uart frame error");
+                    break;
+                //Others
+                default:
+                    ESP_LOGI(TAG, "uart event type: %d", event.type);
+                    break;
+            }
+        }
+    }
+    free(dtmp);
+    dtmp = NULL;
+    vTaskDelete(NULL);
+}
+
 
 void app_main(void)
 {
-    esp_rom_gpio_pad_select_gpio(PUSH_BUTTON_PIN);
-    esp_rom_gpio_pad_select_gpio(LED_PIN);
+    // setup UART interrupt
+    esp_log_level_set(TAG, ESP_LOG_NONE); // en/disable log interrupt related messages
 
-    gpio_set_direction(PUSH_BUTTON_PIN, GPIO_MODE_INPUT);
-    gpio_set_direction(LED_PIN ,GPIO_MODE_OUTPUT);
+    /* Configure parameters of an UART driver,
+     * communication pins and install the driver */
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    //Install UART driver, and get the queue.
+    uart_driver_install(EX_UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart0_queue, 0);
+    uart_param_config(EX_UART_NUM, &uart_config);
 
-    gpio_set_intr_type(PUSH_BUTTON_PIN, GPIO_INTR_ANYEDGE); // no other option for INTR_TYPE works
-    gpio_install_isr_service(ESP_INR_FLAG_DEFAULT);
-    gpio_isr_handler_add(PUSH_BUTTON_PIN, button_isr_handler, NULL);
+    //Set UART log level
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+    //Set UART pins (using UART0 default pins ie no changes.)
+    uart_set_pin(EX_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-    esp_log_level_set("*", ESP_LOG_ERROR);
-    printf("here");
     // setup GPIO
     setup_all_gpio();
-    printf("here");
     uint8_t EN_ALL_MUX = 1;
     gpio_set_level(EN_MUX_ALL, EN_ALL_MUX);
 
-    // setup SPI
+    // setup SPI for MUX coms
     send_spi_cmd_init();
     
     // electrode setup
     uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
     uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
 
-    xTaskCreate(interrupt_task, "interrupt_task", 4096, NULL, 10, &ISR);
+    // create a UART triggered task
+    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
 
 	while(1) {
         vTaskDelay(100);
-        printf("isrc%d isnk%d vn%d vp%d\n", isnk_elec, isrc_elec, vn_elec, vp_elec);
 	}
-	vTaskDelete(NULL);
 }

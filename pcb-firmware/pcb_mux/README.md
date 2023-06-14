@@ -4,10 +4,10 @@ Code to multiplex a current source and voltage measurements for Electrical Imped
 
 | **Signal** | **ESP-WROOM32 Pin** | **ESP32-C3 Pin** |
 |------------|---------------------|------------------|
-| MUX_EN     |          4          |         4        |
-| MUX_CS     |          2          |         2        |
-| MUX_COPI   |          13         |        13        |
-| MUX_CLK    |          14         |        12        |
+| MUX_EN     |          4          |         TBD        |
+| MUX_CS     |          2          |         TBD        |
+| MUX_COPI   |          13         |        TBD        |
+| MUX_CLK    |          14         |        TBD        |
  
 ## Command set
 To change the state of the PCB MUX circuit it must receive certain characters over serial UART. 

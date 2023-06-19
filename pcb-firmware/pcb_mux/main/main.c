@@ -44,19 +44,37 @@ static uint8_t reading_count = 0;
 #define EN_MUX_ALL 4
 #define GPIO_OUTPUT_PIN_SEL  ((1ULL<<EN_MUX_ALL))
 
-// ESP32 WROOM32 (DOWD) pins
-#define MUX_CS 2
-#define MUX_CLK 14
-#define MUX_COPI 13
-#define MUX_CIPO 12 // not used
-#define SPI_HOST_ID HSPI_HOST
+#ifdef CONFIG_IDF_TARGET_ESP32
+#   define SPI_HOST_ID    HSPI_HOST
+#   define MUX_CIPO 18
+#    define MUX_COPI 23
+#    define MUX_CLK  19
+#    define MUX_CS   13
 
-// // ESP32-C3 pins
-// #define MUX_CS 2
-// #define MUX_CLK 12
-// #define MUX_COPI 13
-// #define MUX_CIPO 11 // not used
-// #define SPI_HOST_ID SPI2_HOST
+// NOT TESTED WITH THE FOLLOWING ESP VARIANTS!!
+#elif defined CONFIG_IDF_TARGET_ESP32S2
+#  define SPI_HOST_ID    SPI2_HOST
+
+#  define MUX_CIPO 37
+#  define MUX_COPI 35
+#  define MUX_CLK  36
+#  define MUX_CS   34
+#elif defined CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C2
+#  define SPI_HOST_ID    SPI2_HOST
+
+#  define MUX_CIPO 2
+#  define MUX_COPI 7
+#  define MUX_CLK  6
+#  define MUX_CS   10
+
+#elif CONFIG_IDF_TARGET_ESP32S3
+#  define SPI_HOST_ID    SPI2_HOST
+
+#  define MUX_CIPO 13
+#  define MUX_COPI 11
+#  define MUX_CLK  12
+#  define MUX_CS   10
+#endif
 
 void setup_all_gpio() {
     // output pins
@@ -75,12 +93,12 @@ void setup_all_gpio() {
     gpio_config(&o_conf);
 }
 
-void send_spi_cmd_init(void) {
+void spi_config_init(void) {
 	spi_bus_config_t bus_config;
     memset(&bus_config, 0, sizeof(spi_bus_config_t));
 	bus_config.sclk_io_num = MUX_CLK;
 	bus_config.mosi_io_num = MUX_COPI;
-	bus_config.miso_io_num = MUX_CIPO;
+	bus_config.miso_io_num = MUX_CIPO; // Not used
 	bus_config.quadwp_io_num = -1; // Not used
 	bus_config.quadhd_io_num = -1; // Not used
     spi_bus_initialize(SPI_HOST_ID, &bus_config, 1);
@@ -107,7 +125,7 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 	dev_config.pre_cb = 0;
 	dev_config.post_cb = 0;
 
-    spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
+    spi_bus_add_device(SPI_HOST_ID, &dev_config, &handle);
 
 	spi_transaction_t trans_desc;
 	trans_desc.addr = 0;
@@ -122,7 +140,7 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 
     spi_bus_remove_device(handle);
 
-    // spi_bus_free(HSPI_HOST);
+    // spi_bus_free(SPI_HOST_ID);
 }
 
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
@@ -158,6 +176,8 @@ void iter_elecs_adj(void){
         vn_elec = iter_elec(1,vn_elec,NUM_ELECS);
         vp_elec = iter_elec(1,vp_elec,NUM_ELECS);
     }
+    uint8_t data[2] = {sel_mux_frmt(isnk_elec, isrc_elec),sel_mux_frmt(vn_elec,vp_elec)};
+    send_spi_cmd(data, MUX_CS);
 }
 
 static void uart_event_task(void *pvParameters)
@@ -170,7 +190,7 @@ static void uart_event_task(void *pvParameters)
     c = get iteration (reading) count
     */ 
     uart_event_t event;
-    size_t buffered_size;
+    // size_t buffered_size;
     uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
     for(;;) {
         //Waiting for UART event.
@@ -189,7 +209,7 @@ static void uart_event_task(void *pvParameters)
                     uart_write_bytes(EX_UART_NUM, (const char*) dtmp, event.size);
                     if (dtmp[0] == (uint8_t)('i')) {
                         // ITERATE ELECTRODE PATTERN
-                        iter_elecs_adj(); 
+                        iter_elecs_adj();    
                         ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
                     }
                     else if (dtmp[0] == (uint8_t)('g')) {
@@ -200,8 +220,11 @@ static void uart_event_task(void *pvParameters)
                         // GET ITERATION COUNT
                         ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
                         printf("%d", reading_count);
-                    break;
                     }
+                    else {
+                        ESP_LOGI(TAG, "[UNKNOWN DATA]: %c", dtmp[0]);
+                    }
+                    break;
                 //Event of HW FIFO overflow detected
                 case UART_FIFO_OVF:
                     ESP_LOGI(TAG, "hw fifo overflow");
@@ -274,16 +297,19 @@ void app_main(void)
     gpio_set_level(EN_MUX_ALL, EN_ALL_MUX);
 
     // setup SPI for MUX coms
-    send_spi_cmd_init();
+    spi_config_init();
     
     // electrode setup
     uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
     uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
+    uint8_t elec_data[2] = {i_elecs, v_elecs};
+    send_spi_cmd(elec_data, MUX_CS);
 
     // create a UART triggered task
-    xTaskCreate(uart_event_task, "uart_event_task", 2048, NULL, 12, NULL);
+    xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL, 12, NULL);
 
 	while(1) {
         vTaskDelay(100);
+        ESP_LOGI(TAG, "loop");
 	}
 }

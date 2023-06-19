@@ -1,6 +1,6 @@
 # _PCB MUX with SMU_
 
-Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern. We are using a Keithely 2634b SMU,however the system should be SMU agnostic. However any data gathering software communicating with the SMU may need to be altered.
+Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern using an ESP32 microcontroller. We are using a Keithely 2634b SMU,however the system should be SMU agnostic. However any data gathering software communicating with the SMU may need to be altered.
 
 | **SMU Signal** | **MUX PCB Pin** | **Signal** | **ESP32 Pin** |
 |:--------------:|:---------------:|:----------:|:-------------:|
@@ -16,6 +16,7 @@ Code to multiplex a current source and voltage measurements for Electrical Imped
 |       N/A      |     SPI_CLK     |   MUX_CLK  |      IO19     |
 |       N/A      |       3V3       |     VCC    |      3V3      |
 
+*Upload to an ESP32 microcontroller using ESP-IDF or similar*
 
 ## Command set
 To change the state of the PCB MUX circuit it must receive certain characters over serial UART. 
@@ -35,4 +36,3 @@ responding via serial, the number of iterations since program start
 
 ![Pool lane diagram showing the parallel workflow of a PC, SMU, and ESP programs](/pcb-firmware/pcb_mux/PCB_MUX_SW_flow.jpg)
 
-*Upload using ESP-IDF or similar*

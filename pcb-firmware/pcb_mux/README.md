@@ -33,6 +33,6 @@ responding via serial, the number of iterations since program start
 
 ## Intended Software Flow
 
-![Pool lane diagram showing the parallel workflow of a PC, SMU, and ESP programs](/PCB_MUX_SW_flow.jpg)
+![Pool lane diagram showing the parallel workflow of a PC, SMU, and ESP programs](/pcb-firmware/pcb_mux/PCB_MUX_SW_flow.jpg)
 
 *Upload using ESP-IDF or similar*

@@ -6,8 +6,8 @@ Code to multiplex a current source and voltage measurements for Electrical Imped
 |:--------------:|:---------------:|:----------:|:-------------:|
 |     smub hi    |      Out2 B     |    Isrc    |      N/A      |
 |     smub lo    |      Out2 A     |    Isnk    |      N/A      |
-|     smua hi    |      Out1 B     |  $Vmeas_p$ |      N/A      |
-|     smua lo    |      Out1 A     |  $Vmeas_n$ |      N/A      |
+|     smua hi    |      Out1 B     |  $\mathrm{Vmeas_p}$ |      N/A      |
+|     smua lo    |      Out1 A     |  $\mathrm{Vmeas_n}$ |      N/A      |
 |     smu gnd    |     GND & VSS   |     GND    |      GND      |
 |       N/A      |       VDD       |  V_EXT/5V  |    V_EXT/5V   |
 |       N/A      |      MUX_EN     |   MUX_EN   |      IO4      |
@@ -22,11 +22,17 @@ To change the state of the PCB MUX circuit it must receive certain characters ov
 
 Command prompts for the PCB_MUX setup sent over UART:
 
-    i = iterate electrodes (
-        in [typical EIT adjacent pattern](https://hal.science/hal-03370772/document)
+    i = iterate electrodes
+using [typical EIT adjacent pattern](https://hal.science/hal-03370772/document)
+
     g = get current electrode state
-        responds via serial, the electrode number of current source and voltage measure electrodes
+responding via serial, the electrode number of current source and voltage measure electrodes
+
     c = get iteration count
-        responds via serial, the number of iterations since program start
+responding via serial, the number of iterations since program start
+
+## Intended Software Flow
+
+![Pool lane diagram showing the parallel workflow of a PC, SMU, and ESP programs](/PCB_MUX_SW_flow.jpg)
 
 *Upload using ESP-IDF or similar*

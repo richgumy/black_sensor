@@ -27,6 +27,7 @@ All of the files to create the hardware are given as raw kicad files. All of the
 - Lower power MCU
 
 ## 2 - ERT PCB firmware
+### 2.1 - ERT PCB
 The PCB firmware is all written in C for the ESP32-WROOM SoC connected to a custom 'ERT PCB'. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB UART serial connection.
 The basic electrode drive process is:
 1. Apply current to 2 electrodes
@@ -34,15 +35,31 @@ The basic electrode drive process is:
 3. Send voltage measurement data via serial
 4. Iterate to next set of current electrodes.
 5. Back to step 1.
-### Features:
+#### Features:
 - Drive modes: Standby, Calibrate, Adjacent
 - Measurement averaging
 - 16bit analog reading
-### Future Features:
+#### Future Features:
 - Bluetooth transmission of serial data
 - More drive modes: Pseudo polar, PP-PP
 - Nonense data checker (Throw error if data is very noisy or ADC saturated etc.)
 - Speed up measurement rate from 8Hz to 40Hz
+- 
+### 2.2 - MUX PCB
+This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a multiplexer (MUX) PCB, an ESP32 WROOM32 development board, a 20V DC power supply, and a sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
+The basic electrode drive process is:
+1. Apply current to 2 electrodes
+2. Measure voltage across 16 electrode pairs
+3. Send voltage measurement data via serial
+4. Iterate to next set of current electrodes.
+5. Back to step 1.
+#### Features:
+- Simple serial control
+- Voltage measurement time integration
+#### Future Features:
+- More drive modes: Pseudo polar, PP-PP
+- Nonense data checker (Throw error if SMU Isrc voltage saturating or DC power supply saturating)
+- Speed up measurement rate from 0.3Hz to ??Hz
 
 ## 3 - Reconstruction software
 EIDORS was used as the library for image reconstruction using the data gathered from the PCB. A reference measurement is taken from the material on start-up of the reconstruction program. The reference measurement is compared to a current measurement for change in resisitvity (\Delta R) image reconstruction.
@@ -68,7 +85,4 @@ The material we are using is a carbon black nanoparticle silicone rubber composi
 - Easily customisable for other MUT sizes and MUT materials within measurement range.
 ### Future Features:
 - Standard test domains and MUT holder/electrode configurations
-
-With all of this sensor in place and ready to obtain data the next step is to apply it to something!
-
 

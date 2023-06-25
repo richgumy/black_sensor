@@ -12,8 +12,10 @@ A low cost PCB has been developed to capture the ERT data in reatime, which is s
 <img src="/media/architecture.png" width="600">
 
 ## 1 - ERT PCB hardware
-All of the files to create the hardware are given as raw kicad files. All of the component libraries may not exist so will need to made manually or imported.
-### Features:
+The hardware driving the ERT sensor consist of either one custom ERT PCB or a MUX PCB used with an ESP32 development board and source measurement unit (SMU). All of the files to create the hardware are given as raw KiCad files. All of the component libraries may not exist so will need to made manually or imported.
+### 2.1 - ERT PCB
+This board is for ERT data collection limited to sensor domains which have lower resisitances throughout the entirety of its intended use. The adjacent electrode resistance must not exceeed approx. 5k$\Omega$.
+#### Features:
 - 5v USB power supply
 - Onboard USB-UART programming
 - Four 16:1 SPI MUXs
@@ -21,10 +23,18 @@ All of the files to create the hardware are given as raw kicad files. All of the
 - Trimpot controlled voltage measurement gain
 - 16 bit SPI ADC
 - WiFi/BT capability
-### Future Features:
+#### Future Features:
 - Impedance measurements using network analyser
 - Smaller PCB size
 - Lower power MCU
+### 2.2 - MUX PCB
+This system consists of a SPI controlled 4:16 multiplexer (MUX) PCB used controlled with an ESP32 development board, PC and driven by a Keithley 2634b SMU.
+#### Features:
+- Onboard USB-UART programming
+- Four 16:1 SPI MUXs
+- WiFi/BT capability
+#### Future Features:
+- Move all the SMU functionality to the ERT PCB
 
 ## 2 - ERT PCB firmware
 ### 2.1 - ERT PCB
@@ -45,8 +55,8 @@ The basic electrode drive process is:
 - Nonense data checker (Throw error if data is very noisy or ADC saturated etc.)
 - Speed up measurement rate from 8Hz to 40Hz
 - 
-### 2.2 - MUX PCB
-This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a multiplexer (MUX) PCB, an ESP32 WROOM32 development board, a 20V DC power supply, and a sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
+### 2.2 - MUX PCB - ESP32/PC
+This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a MUX PCB, an ESP32 WROOM32 development board, a 20V DC power supply, and a sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
 The basic electrode drive process is:
 1. Apply current to 2 electrodes
 2. Measure voltage across 16 electrode pairs

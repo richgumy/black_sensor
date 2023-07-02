@@ -14,7 +14,7 @@ A low cost PCB has been developed to capture the ERT data in reatime, which is s
 ## 1 - ERT PCB hardware
 The hardware driving the ERT sensor consist of either one custom ERT PCB or a MUX PCB used with an ESP32 development board and source measurement unit (SMU). All of the files to create the hardware are given as raw KiCad files. All of the component libraries may not exist so will need to made manually or imported.
 ### 2.1 - ERT PCB
-This board is for ERT data collection limited to sensor domains which have lower resisitances throughout the entirety of its intended use. The adjacent electrode resistance must not exceeed approx. 5k$\Omega$.
+This board is for ERT data collection limited to sensor domains which have lower resisitances throughout the entirety of its intended use. The adjacent electrode resistance must not exceeed approx. 5 $k\Omega$.
 #### Features:
 - 5v USB power supply
 - Onboard USB-UART programming

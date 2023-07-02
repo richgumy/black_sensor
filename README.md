@@ -28,13 +28,13 @@ This board is for ERT data collection limited to sensor domains which have lower
 - Smaller PCB size
 - Lower power MCU
 ### 2.2 - MUX PCB
-This system consists of a SPI controlled 4:16 multiplexer (MUX) PCB used controlled with an ESP32 development board, PC and driven by a Keithley 2634b SMU.
+This system consists of a SPI controlled 4:16 multiplexer (MUX) PCB used controlled with an ESP32 development board, PC and driven by a Keithley 2634b SMU and Keithley 2230G-30-1 DC power supply.
 #### Features:
 - Onboard USB-UART programming
 - Four 16:1 SPI MUXs
 - WiFi/BT capability
 #### Future Features:
-- Move all the SMU functionality to the ERT PCB
+- Miniatruise and move all this system's functionality to the ERT PCB
 
 ## 2 - ERT PCB firmware
 ### 2.1 - ERT PCB
@@ -54,7 +54,7 @@ The basic electrode drive process is:
 - More drive modes: Pseudo polar, PP-PP
 - Nonense data checker (Throw error if data is very noisy or ADC saturated etc.)
 - Speed up measurement rate from 8Hz to 40Hz
-- 
+
 ### 2.2 - MUX PCB - ESP32/PC
 This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a MUX PCB, an ESP32 WROOM32 development board, a 20V DC power supply, and a sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
 The basic electrode drive process is:
@@ -63,12 +63,17 @@ The basic electrode drive process is:
 3. Send voltage measurement data via serial
 4. Iterate to next set of current electrodes.
 5. Back to step 1.
+
+These steps are done using a PC to send commands for switching the MUC PCB and query messages sent to the SMU to get voltage and current values.
+
 #### Features:
 - Simple serial control
 - Voltage measurement time integration
+- Nonense data checker (Throw error if SMU Isrc voltage saturating or DC power supply saturating)
+- Logs the electrode resistance at beginning of cycle
+
 #### Future Features:
 - More drive modes: Pseudo polar, PP-PP
-- Nonense data checker (Throw error if SMU Isrc voltage saturating or DC power supply saturating)
 - Speed up measurement rate from 0.3Hz to ??Hz
 
 ## 3 - Reconstruction software

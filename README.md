@@ -56,7 +56,7 @@ The basic electrode drive process is:
 - Speed up measurement rate from 8Hz to 40Hz
 
 ### 2.2 - MUX PCB - ESP32/PC
-This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a MUX PCB, an ESP32 WROOM32 development board, a 20V DC power supply, and a sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
+This is a more modular approach so that we are not limited by the ERT PCB's current source and power supply values. This system has five main components: A Keithley 2634b SMU, a MUX PCB, an ESP32 WROOM32 development board, a Keithley 2230G-30-1 DC power supply, and a piezoresistive sensor domain. The whole system is controlled via the PCB connected to the ESP32 and SMU over UART. 
 The basic electrode drive process is:
 1. Apply current to 2 electrodes
 2. Measure voltage across 16 electrode pairs

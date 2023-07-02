@@ -1,6 +1,20 @@
 # _PCB MUX with SMU_
 
-Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern using an ESP32 microcontroller. We are using a Keithely 2634b SMU,however the system should be SMU agnostic. However any data gathering software communicating with the SMU may need to be altered.
+Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern using an ESP32 microcontroller. We are using a Keithely 2634b SMU, but this can easily be changed out for any programmable current source and voltage measuring unit. Use the pcb_mux driectory above for programming the ESP32 using ESP-IDF. 
+
+To run an ERT collection cycle run:
+
+`> python eit_reader.py <filename> <format> <num_cycles> <Isrc_A> <nplc>`
+
+filename = file name not inlc. '.csv'
+
+format = 'r' for raw data. Else output EIT reconstruction friendly format
+
+All other are optional and otherwise default to num_cycles = 15, Isrc_A = 1 mA, nplc = 0.01
+
+
+
+## System pinout
 
 | **SMU Signal** | **MUX PCB Pin** | **Signal** | **ESP32 Pin** |
 |:--------------:|:---------------:|:----------:|:-------------:|

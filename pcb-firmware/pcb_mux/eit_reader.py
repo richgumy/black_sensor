@@ -2,7 +2,7 @@
 FILE: eit _reader.py
 AUTHOR: R Ellingham
 DATE CREATED: May 2023
-DATE MODIFIED: May 2023
+DATE MODIFIED: June 2023
 PROGRAM DESC: Gather EIT measurement then prompt via serial a mux device to iterate to the next 
 step in an EIT read pattern. Writes the data to a CSV file ready for analysis.
 
@@ -21,6 +21,7 @@ To change SMU params go to '## Init smu parameters ##' in code.
 
 import csv
 from datetime import datetime
+import eit_reader_checker
 from k2600 import K2600 # see k2600.py for usage
 import k2600
 import matplotlib
@@ -208,6 +209,8 @@ if __name__ == "__main__":
                 csv_data.writerows(data_formatd)
                 # plt.plot(data_formatd[1:,0])
                 # plt.show()
+        eit_reader_checker.main(input_filename,i_src_A) # print out report
         sys.exit()
+        
 
 

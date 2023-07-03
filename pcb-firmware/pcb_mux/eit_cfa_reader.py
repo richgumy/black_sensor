@@ -1,10 +1,11 @@
 """
-FILE: eit _reader.py
+FILE: eit_cfa_reader.py
 AUTHOR: R Ellingham
-DATE CREATED: May 2023
-DATE MODIFIED: June 2023
+DATE CREATED: July 2023
+DATE MODIFIED: July 2023
 PROGRAM DESC: Gather EIT measurement then prompt via serial a mux device to iterate to the next 
-step in an EIT read pattern. Writes the data to a CSV file ready for analysis.
+step in an EIT read pattern. The program simultaneously reads the force being applied from the cartesian force applicator loadcell for each cycle.
+Writes all data to a CSV file ready for analysis.
 
 Use case: 
 1) Enter in program directory cmd prompt:
@@ -21,7 +22,6 @@ To change SMU params go to '## Init smu parameters ##' in code.
 
 import csv
 from datetime import datetime
-import eit_reader_checker
 from k2600 import K2600 # see k2600.py for usage
 import k2600
 import matplotlib
@@ -31,8 +31,11 @@ import pyvisa
 import serial
 import serial.tools.list_ports
 import time
+from threading import Thread
 import traceback
 
+import eit_reader_checker
+import get_force
 
 def init_smu(smu_handle, i_src_A, v_meas_max_V=20, nplc=1, f_baud=115200):
     # init smu parameters
@@ -175,8 +178,15 @@ if __name__ == "__main__":
             i_src_A = float(sys.argv[4])
         if len(sys.argv)>5:
             nplc = float(sys.argv[5])
-        # Run program!
-        main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc)
+        # Run programs!
+        Experimental threading below!
+        thread1 = Thread(target=main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc))
+        thread2 = Thread(target=get_force.main(f"{input_filename}",''))
+        thread1.start()
+        thread2.start()
+        thread1.join()
+        thread2.join()
+
 
     except Exception:
         print(traceback.format_exc())
@@ -209,7 +219,7 @@ if __name__ == "__main__":
                 csv_data.writerows(data_formatd)
                 # plt.plot(data_formatd[1:,0])
                 # plt.show()
-        eit_reader_checker.main(input_filename,i_src_A) # print out results report
+        eit_reader_checker.main(input_filename,i_src_A) # print out report
         sys.exit()
         
 

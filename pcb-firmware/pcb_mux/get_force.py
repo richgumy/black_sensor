@@ -15,11 +15,34 @@ from Phidget22.Devices.VoltageRatioInput import *
 from datetime import datetime
 import time
 
+## loadcell function parameters
+scale_loadcell_G = 4.94462e+6
+offset_loadcell_G = 70.13
+
 def onVoltageRatioChange(self, voltageRatio):
     # print("VoltageRatio: " + str(voltageRatio))
-    mass_g = voltageRatio*4.94462e+6 + 70.13
+    mass_g = voltageRatio*scale_loadcell_G + offset_loadcell_G
     self.voltage_V = voltageRatio
     self.mass_g = mass_g
+    self.force_N = mass_g * 9.805 / 1000
+
+def cal_loadcell(loadcell_handle):
+    global offset_loadcell_G
+    offsetv_buf = []
+    buf_len = 30
+    for i in range(buf_len):
+        time.sleep(0.01)
+        offsetv_buf.append(loadcell_handle.mass_g)
+    offset_loadcell_G = offset_loadcell_G - sum(offsetv_buf)/buf_len
+    print("loadcell cal'd")
+    return offset_loadcell_G
+
+def loadcell_init(loadcell_handle):
+    ## Setup loadcell(bridge) device
+    loadcell_handle.setOnVoltageRatioChangeHandler(onVoltageRatioChange)
+    loadcell_handle.openWaitForAttachment(5000)
+    loadcell_handle.setDataRate(8)
+    print("loadcell init'd!")
 
 def main(filename, save_loc):
     ## Setup loadcell(bridge) device

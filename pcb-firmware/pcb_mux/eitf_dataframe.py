@@ -16,7 +16,9 @@ class EITFDataFrame:
                 PiezoResSample,
                 num_elecs=16,
                 f_data_N=[],
-                xya_data_mm=[],
+                xyz_data_mm=[],
+                z_mesh=[],
+                z_mesh_locs=[],
                 r_adj_error=0,
                 v_max_error=0):
         # inputs
@@ -34,7 +36,7 @@ class EITFDataFrame:
         self.PiezoResSample = PiezoResSample # must be a PiezoResSample class
         # optional inputs 
         self.f_data_N = f_data_N # force data
-        self.xya_data_mm = xya_data_mm # arrays for tool center point x,y,z coordinates referenced from the center surface of the DUT
+        self.xyz_data_mm = xyz_data_mm # arrays for tool center point x,y,z coordinates referenced from the center surface of the DUT
         self.r_adj_error = r_adj_error
         self.v_max_error = v_max_error
 

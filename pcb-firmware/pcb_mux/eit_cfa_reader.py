@@ -22,6 +22,7 @@ import csv
 from datetime import datetime
 import matplotlib
 import matplotlib.pyplot as plt 
+from multiprocessing import Process, Queue # delete above line if using this works. Use queue to ensure variables can be shared between processes??
 import numpy as np
 from Phidget22.Phidget import *
 from Phidget22.Devices.VoltageRatioInput import *
@@ -35,42 +36,14 @@ import traceback
 
 import eit_reader_checker
 from eitf_dataframe import *
+from get_force import *
 from k2600 import K2600 # see k2600.py for usage
 import k2600
-
-## loadcell function parameters
-scale_loadcell_G = 4.94462e+6
-offset_loadcell_G = 70.13
 
 ## Test start ref
 start_time_G = time.time()
 
-def onVoltageRatioChange(self, voltageRatio):
-    # print("VoltageRatio: " + str(voltageRatio))
-    mass_g = voltageRatio*scale_loadcell_G + offset_loadcell_G
-    self.voltage_V = voltageRatio
-    self.mass_g = mass_g
-    self.force_N = mass_g * 9.805
-
-def cal_cfa(loadcell_handle):
-    global offset_loadcell_G
-    offsetv_buf = []
-    buf_len = 30
-    for i in range(buf_len):
-        time.sleep(0.01)
-        offsetv_buf.append(loadcell_handle.mass_g)
-    offset_loadcell_G = offset_loadcell_G - sum(offsetv_buf)/buf_len
-    print("loadcell cal'd")
-    return offset_loadcell_G
-
-def loadcell_init(loadcell_handle):
-    ## Setup loadcell(bridge) device
-    loadcell_handle.setOnVoltageRatioChangeHandler(onVoltageRatioChange)
-    loadcell_handle.openWaitForAttachment(5000)
-    loadcell_handle.setDataRate(8)
-    print("loadcell init'd!")
-
-def get_force(loadcell_handle):
+def get_force_N(loadcell_handle):
     # re-define stop_flag
     global stop_flag
     # re-define data buffers
@@ -170,6 +143,10 @@ def read_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
             print("t_mux="+str(tdmux))
     stop_flag = True
 
+## cfa functions
+def get_pos()
+
+
 def main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc, v_max_V, num_elecs=16):
     ## 0. setup system
     fs_max = 1000 # max Vmeas sample frequency (limited by how fast the PCB MUX can be MUX'd via serial SPI comms)
@@ -190,12 +167,12 @@ def main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc, v_max_V, num_elecs=16):
     # setup force measurement
     loadcell = VoltageRatioInput()
     loadcell_init(loadcell)
-    cal_cfa(loadcell)
+    cal_loadcell(loadcell)
 
     # COMPLETE EIT & FORCE MEASUREMENTS CONCURRENTLY
     start_time_G = time.time() # global reference start time
     eit_thread = Thread(target=read_eit_data, args=(smu, ser, fs_max, v_meas_max_V))
-    force_thread = Thread(target=get_force, args=(loadcell,))
+    force_thread = Thread(target=get_force_N, args=(loadcell,))
     eit_thread.start()
     force_thread.start()
     eit_thread.join()

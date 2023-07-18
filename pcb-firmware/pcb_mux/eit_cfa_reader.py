@@ -28,6 +28,7 @@ from Phidget22.Phidget import *
 from Phidget22.Devices.VoltageRatioInput import *
 import pickle as pkl
 import pyvisa
+import re
 import serial
 import serial.tools.list_ports
 from threading import Thread
@@ -40,10 +41,18 @@ from get_force import *
 from k2600 import K2600 # see k2600.py for usage
 import k2600
 
-## Test start ref
-start_time_G = time.time()
 
-def get_force_N(loadcell_handle):
+# init globals
+start_time_G = time.time() # reference time
+max_accel_G = 200 # mm/s^2
+    # global global coordinates
+x_G = 0 # mm
+y_G = 0
+z_G = 0
+
+
+## loadcell functions
+def log_force_N(loadcell_handle):
     # re-define stop_flag
     global stop_flag
     # re-define data buffers
@@ -55,6 +64,7 @@ def get_force_N(loadcell_handle):
         f_buf_N.append(loadcell_handle.force_N)
         time.sleep(0.001)
     print(f"final force={loadcell_handle.force_N:.2e}N")
+
 
 ## smu functions
 def init_smu(smu_handle, i_src_A, v_meas_max_V=20, nplc=0.01, f_baud=115200):
@@ -103,7 +113,7 @@ def write_pcbmux(serial_handle, cmd):
     error = serial_handle.write(msg)
     return error
 
-def read_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
+def log_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
     eit_count = 0 # EIT iteration count    # re-define stop flag
     global stop_flag
     # define global buffers
@@ -143,12 +153,171 @@ def read_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
             print("t_mux="+str(tdmux))
     stop_flag = True
 
+
 ## cfa functions
-def get_pos()
+def send_gcode(s_handle, data):
+    '''
+    Descr: ensures all gcode messages are correctly encoded and terminated
+    '''
+    print(f"sending {data}")
+    return s_handle.write((data+'\n').encode('ascii'))
+    
+def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1):
+    '''
+    Descr: Moves to an abs x,y,z [mm] coord at a set speed f [mm/min] using a gmove cmd(0=rapid,1=linear).
+    By default the home+ref offsets are assumed
+    '''
+    global x_G
+    global y_G
+    global z_G
+    if with_offset and not x==None:
+        x = x + home_offset_mm[0]+ref_loc_mm[0]
+    if with_offset and not y==None:
+        y = y + home_offset_mm[1]+ref_loc_mm[1]
+    if x == None:
+        x = x_G
+    if y == None:
+        y = y_G
+    if z == None:
+        z = z_G
+    move_len = np.linalg.norm([x-x_G,y-y_G,z-z_G])
+    v = f/60 # speed in mm/s
+    move_t = 2*v/a + (move_len - (v**2)/a)/v
+    if move_t <= 2*v/a:
+        move_t = np.sqrt(2*(move_len/a))
+
+    send_gcode(s_handle,f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.2f}")
+    ts = time.time()
+    while (time.time()-ts) < move_t:
+        # print(move_t, time.time()-ts)
+        # get_pos(s_handle)
+        _ = None
+
+    # time.sleep(move_t)
+    x_G = x
+    y_G = y
+    z_G = z
+
+def init_cfa(s_handle, max_accel, home_offset):
+    # to 3d printer home
+    send_gcode(s_handle,"G28 X Y Z") # CAN ALSO SEND 'G28 W'. DON'T SEND 'G28' ALONE AS THIS WILL COMPLETE MESH BED LEVELLING.
+    print('homing now')
+    send_gcode(s_handle,f"M201 X{max_accel} Y{max_accel} Z{max_accel}") # sets max accel in xyz
+    send_gcode(s_handle,f"M204 P{max_accel} T{max_accel}") # sets max accel for print and travel moves
+    gcode_move_wait(s_handle,z=5,with_offset=0)
+    gcode_move_wait(s_handle,x=home_offset[0],y=home_offset[1],with_offset=0)
+    print("please wait..")
+    wait = 15
+    for i in range(wait):
+        print(wait-i)
+        time.sleep(1)
+
+def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,home_offset,ref_loc_mm,dz=0.05,fz=50,f_thresh_N=1):
+    global z_mesh
+    # move on top of mid DUT
+    gcode_move_wait(s_handle,z=hover_z_mm,with_offset=0)
+    gcode_move_wait(s_handle,x=0,y=0)
+    # go through mesh bed leveling pushes
+    print(z_mesh_locs)
+    for i in range(len(z_mesh_locs)):
+        gcode_move_wait(s_handle,x=z_mesh_locs[i][0],y=z_mesh_locs[i][1])
+        f_N = 0
+        z_step = 0
+        while f_N < f_thresh_N:
+            gcode_move_wait(s_handle,z=hover_z_mm-dz*z_step, f=fz) # slow push
+            z_step = z_step + 1
+            f_N = load_handle.force_N
+            print(f"{f_N:.2e}N")
+        z_mesh.append(round(z_step*dz,2))
+        gcode_move_wait(s_handle,z=hover_z_mm)
+        print(f"x,y,z={get_pos(s_handle)}")
+    print("z mesh array:")
+    print(z_mesh)
+
+def get_pos(s_handle):
+    x_curr,y_curr,z_curr = 0,0,0
+    send_gcode(s_handle,"M114")
+    rx_buf = s_handle.readline().decode()
+    while(not 'ok' in rx_buf):
+        print(rx_buf)
+        if not 'X:' in rx_buf:
+            return None
+        pos_raw = m114_exp.findall(rx_buf)
+        x_curr = pos_raw[3][1]
+        y_curr = pos_raw[4][1]
+        z_curr = pos_raw[5][1]
+        rx_buf = s_handle.readline().decode()
+    return [x_curr,y_curr,z_curr]
+
+
+## cfa gcode r/w fucntions
+def writemove_gcode(f_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1):
+    '''
+    Descr: Moves to an abs x,y,z [mm] coord at a set speed f [mm/min] using a gmove cmd(0=rapid,1=linear)
+    '''
+    global x_G
+    global y_G
+    global z_G
+    if x == None:
+        x = x_G
+    if y == None:
+        y = y_G
+    if z == None:
+        z = z_G
+    move_len = np.linalg.norm([x-x_G,y-y_G,z-z_G])
+    v = f/60 # speed in mm/s
+    move_t = 2*v/a + (move_len - (v**2)/a)/v
+    if move_t <= 2*v/a:
+        move_t = np.sqrt(2*(move_len/a))
+    if with_offset:
+        x = x + home_offset_mm[0]+ref_loc_mm[0]
+        y = y + home_offset_mm[1]+ref_loc_mm[1]
+    f_handle.write(f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.2f};\n")
+    f_handle.write(f"G04 P{move_t*1000:.2f};\n")
+    x_G = x
+    y_G = y
+    z_G = z
+
+def writepause_gcode(f_handle,t_ms):
+    f_handle.write(f"G04 P{float(t_ms):.2f};\n")
+
+def write_gcode_seq(gcode_file, push_points, strain, t_hold_s, thk, hover_z_mm):
+    # calc strain distance Zs
+    Zs = float(thk) * float(strain)
+    if not (gcode_file[-5:] == ".gcode"):
+        gcode_file = gcode_file + ".gcode"
+    # open gcode file to write in
+    with open(gcode_file, 'w') as f:
+        f.write("G90; Set -> abs movement\n")
+        for point in push_points:
+            print(f"push point {point}")
+            writemove_gcode(f,x=point[0],y=point[1])
+            print("writing")
+            writemove_gcode(f,z=-(z_mesh[z_mesh_locs.index(point)]+Zs)+hover_z_mm,f=100)
+            writepause_gcode(f,t_hold_s*1000)
+    f.close()
+    return gcode_file
+
+def send_gcode_seq(s_handle, gcode_file):
+    with open(gcode_file,'r') as f:
+        gcode = f.readlines()
+    s_handle.write(gcode)
+
+def log_pos(s_handle):
+    # main position logging function
+    global stop_flag
+    # define global buffers
+    global v_buf_V
+    global tv_buf_s
+    while not stop_flag:
+        pos_buf_mm.append(get_pos(s_handle))
+        tpos_buf_s.append(time.time()-start_time_G)
+        time.sleep(0.001)
+
+
 
 
 def main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc, v_max_V, num_elecs=16):
-    ## 0. setup system
     fs_max = 1000 # max Vmeas sample frequency (limited by how fast the PCB MUX can be MUX'd via serial SPI comms)
 
     # setup SMU connection
@@ -159,45 +328,84 @@ def main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc, v_max_V, num_elecs=16):
     init_smu(smu, i_src_A, v_meas_max_V, nplc, uart_baud)
 
     # setup mux PCB serial connection
-    ser = serial.Serial(comport,uart_baud,timeout=0.1)
-    ser.set_buffer_size(rx_size=256, tx_size=256)
-    query_pcbmux(ser,'GET_STATE')
-    query_pcbmux(ser,'GET_ITER')
+    mux_s = serial.Serial(mux_com,uart_baud,timeout=0.1)
+    mux_s.set_buffer_size(rx_size=256, tx_size=256)
+    query_pcbmux(mux_s,'GET_STATE')
+    query_pcbmux(mux_s,'GET_ITER')
 
     # setup force measurement
     loadcell = VoltageRatioInput()
     loadcell_init(loadcell)
     cal_loadcell(loadcell)
 
-    # COMPLETE EIT & FORCE MEASUREMENTS CONCURRENTLY
+    # setup cfa (3d printer)
+    cfa = serial.Serial('COM4', 115200, timeout=1)
+    print("3d printer booting...")
+    time.sleep(6)
+    cfa.reset_input_buffer()
+    time.sleep(0.1)
+        # remove startup rubbish
+    rx_buf = b'_'
+    while((not 'ok' in rx_buf.decode()) and len(rx_buf)):
+        print(rx_buf)
+        rx_buf = cfa.readline()
+    init_cfa(cfa, max_accel_G, home_offset_mm)
+    run_cfa_mesh_lvl(cfa,loadcell,z_mesh_locs,hover_z_mm,home_offset_mm,ref_loc_mm) # run mesh bed leveling
+    datetime_zmesh = str(datetime.utcnow()) # TODO Add to pkl file
+        # send gcode to cfa
+    gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm)
+    send_gcode_seq(cfa, gcode_file)
+
+    # COMPLETE EIT & FORCE & POS MEASUREMENTS CONCURRENTLY
     start_time_G = time.time() # global reference start time
-    eit_thread = Thread(target=read_eit_data, args=(smu, ser, fs_max, v_meas_max_V))
-    force_thread = Thread(target=get_force_N, args=(loadcell,))
+    eit_thread = Thread(target=log_eit_data, args=(smu, mux_s, fs_max, v_meas_max_V))
+    force_thread = Thread(target=log_force_N, args=(loadcell,))
+    pos_thread = Thread(target=log_pos, args=(cfa,))
+
     eit_thread.start()
     force_thread.start()
+    pos_thread.start()
     eit_thread.join()
     force_thread.join()
+    pos_thread.join()
         
-    # close smu connection
+    # close serial connections
     smu.disconnect()
+    cfa.close()
+    mux_s.close()
 
 
 
 if __name__ == "__main__":
     import sys
-    # set default data collection params
+    # data collection params
     cycles = 10
     i_src_A = 1e-3
     nplc = 0.01
     v_max_V = 20
 
+    # cfa params
+    m114_exp = re.compile("\([^\(\)]*\)|[/\*].*\n|([XYZ]:\s|[XYZ]):?([-+]?[0-9]*\.?[0-9]*)") # M114 regex
+    home_offset_mm = [57.8,14.5] 
+    ref_loc_mm = [65,25] # home location (x,y)[mm] relative to the CoM of the DUT
+    # z_mesh_locs = [[0,0],[15,0],[30,0],[-15,0],[-30,0],
+    #             [0,15],[15,15],[-15,15],
+    #             [0,-15],[15,-15],[-15,-15],
+    #             [0,30],[0,-30]]
+    z_mesh_locs = [[0,0],[15,0],[30,0]] # TODO
+    hover_z_mm = 25
+    datetime_zmesh = str(datetime.utcnow())
+    
+    # define thread stop flag
     stop_flag = False
     
     # set pcbmux serial params
-    comport = 'COM8'
+    mux_com = 'COM8'
     uart_baud = 115200
 
     # set buffers for storing all recorded data
+        # mesh leveling
+    z_mesh = []
         # EIT
     v_buf_V = [] # EIT voltage readings
     i_buf_A = [] # EIT actual Isrc current
@@ -207,8 +415,9 @@ if __name__ == "__main__":
     f_buf_intp_N = []
     tf_buf_s = []
         # tool center point location xyz
-    tcp_buf_mm = []
-    ttcp_buf_s = []
+    pos_buf_mm = []
+    pos_buf_intp_mm = []
+    tpos_buf_s = []
 
     try:
         if len(sys.argv)==1:
@@ -217,21 +426,40 @@ if __name__ == "__main__":
         # set input sample details
         sample_name = input("what is your sample name? (e.g. CBSR_9p_1 or rGOSR_pcb_1) ")
         if sample_name[0:4] == 'CBSR':
-            th_dim_mm = 4
-            dia_dim_mm = 100
+            th_dim_mm = 4.0
+            dia_dim_mm = 100.0
             fab_date = input("Input sample fabrication date if known? (in format DD-MM-YY): ")
         elif sample_name[0:5] == 'rGOSR':
-            th_dim_mm = 3
-            d_dim_mm = 100
+            th_dim_mm = 3.0
+            dia_dim_mm = 100.0
             fab_date = '27-05-22'
         else:
-            th_dim_mm = input("Unknown sample disk dimensions. What thickness in mm? ")
-            dia_dim_mm = input("What diameter in mm? ")
+            th_dim_mm = float(input("Unknown sample disk dimensions. What thickness in mm? "))
+            dia_dim_mm = float(input("What diameter in mm? "))
             fab_date = input("Input fabrication date if known? (in format DD-MM-YY):")
-        
+
+        # set experiment push parameters
+        t_hold_s = input("Input sample push and hold time [s]:")
+        strain = float(input("Input sample strain [%]:"))/100
+        # push_points = [[0,0],[0.3*dia_dim_mm,0],[-0.3*dia_dim_mm,0], # default push points
+        #     [0.15*dia_dim_mm,0.15*dia_dim_mm],[-0.15*dia_dim_mm,0.15*dia_dim_mm],
+        #     [0.15*dia_dim_mm,-0.15*dia_dim_mm],[-0.15*dia_dim_mm,-0.15*dia_dim_mm],
+        #     [0,0.3*dia_dim_mm],[0,-0.3*dia_dim_mm]]
+        push_points = [[0,0],[0.3*dia_dim_mm,0],[0.15*dia_dim_mm,0]] # TODO
+        man_pts = input("Manually input push points?")
+        if (man_pts == ('y'or 'Y')):
+            print(f"push points must be one of the following locs: \n {z_mesh_locs} \n as mesh bed interpolation hasn't been completed yet")
+            push_points = []
+            pt = '_'
+            i = 0
+            while len(pt):
+                pt = input(f"Input x{i},y{i}:")
+                push_points.append(list(pt.split(',')))
+                i += 1
+
         # Run program with cmd line arguments
         if len(sys.argv)>1: 
-            input_filename = sys.argv[1] + '.csv'
+            input_filename = sys.argv[1]
         if len(sys.argv)>2:
             cycles = int(sys.argv[2])
         if len(sys.argv)>3:
@@ -250,14 +478,20 @@ if __name__ == "__main__":
 
     finally:
         # interpolate force data 
-        if len(tf_buf_s) > len(tv_buf_s):
-            f_buf_intp_N = np.interp(tv_buf_s, tf_buf_s, f_buf_N)
-        else:
-            f_buf_intp_N = np.interp(tv_buf_s, tf_buf_s, f_buf_N)
+        if len(tf_buf_s) < len(tv_buf_s):
             print('force reading too slow and will be downsampled!')
+        f_buf_intp_N = np.interp(tv_buf_s, tf_buf_s, f_buf_N)
+
+        # interpolate pos data 
+        if len(tpos_buf_s) < len(tv_buf_s):
+            print('position reading too slow and will be downsampled!')
+        pos_buf_mm = np.transpose(pos_buf_mm)
+        xpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[0])
+        ypos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[1])
+        zpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[2])
             
         print("CSV file saving...")
-        with open(input_filename, 'a', newline='') as csvfile:
+        with open(input_filename+'.csv', 'a', newline='') as csvfile:
             csv_data = csv.writer(csvfile, delimiter=',')
 
             csv_data.writerow(["UTC:",date_time_start])
@@ -270,19 +504,21 @@ if __name__ == "__main__":
                 max_len = len(v_buf_V)
 
             # write data to .csv file
-            csv_data.writerow(["time_pc [s]", "voltage [V]", "i_src [A]","f [N]"])
-            csv_data.writerows(np.transpose([tv_buf_s[0:max_len],v_buf_V[0:max_len],i_buf_A[0:max_len],f_buf_intp_N[0:max_len]])) 
+            csv_data.writerow(["time_pc [s]", "voltage [V]", "i_src [A]","f [N]","x [mm]","y [mm]","z [mm]"])
+            csv_data.writerows(np.transpose([tv_buf_s[0:max_len],v_buf_V[0:max_len],i_buf_A[0:max_len],f_buf_intp_N[0:max_len],
+                                             xpos_buf_intp_mm[0:max_len],ypos_buf_intp_mm[0:max_len],zpos_buf_intp_mm[0:max_len]])) 
         
         # print out results report
-        r_flag, vmax_flag = eit_reader_checker.report(input_filename,i_src_A) 
+        r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
         _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
         
         # save all params to .pkl file of same name
         eit_sample = PiezoResSample(sample_name, th_dim_mm, dia_dim_mm, fab_date)
-        eit_test = EITFDataFrame(input_filename, date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
-                                 nplc, cycles, r_adj_mean, PiezoResSample, f_data_N=f_buf_intp_N, r_adj_error=r_flag, 
+        eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
+                                 nplc, cycles, r_adj_mean, PiezoResSample, f_data_N=f_buf_intp_N, x_data_mm=xpos_buf_intp_mm,
+                                  y_data_mm=ypos_buf_intp_mm, z_data_mm=zpos_buf_intp_mm, r_adj_error=r_flag, 
                                  v_max_error=vmax_flag)
-        with open(input_filename[0:-4]+".pkl","wb") as fp:
+        with open(input_filename+".pkl","wb") as fp:
             pkl.dump(eit_test,fp)
 
         sys.exit()

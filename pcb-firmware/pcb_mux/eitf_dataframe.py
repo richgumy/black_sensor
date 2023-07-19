@@ -21,6 +21,7 @@ class EITFDataFrame:
                 z_data_mm=[],
                 z_mesh=[],
                 z_mesh_locs=[],
+                z_mesh_datetime=None,
                 r_adj_error=0,
                 v_max_error=0):
         # inputs

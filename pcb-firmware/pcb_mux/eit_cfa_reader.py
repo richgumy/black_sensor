@@ -159,7 +159,7 @@ def send_gcode(s_handle, data):
     '''
     Descr: ensures all gcode messages are correctly encoded and terminated
     '''
-    print(f"sending {data}")
+    print(f"sending: {data}")
     return s_handle.write((data+'\n').encode('ascii'))
     
 def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1):
@@ -186,7 +186,7 @@ def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     if move_t <= 2*v/a:
         move_t = np.sqrt(2*(move_len/a))
 
-    send_gcode(s_handle,f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.2f}")
+    send_gcode(s_handle,f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.0f}")
     ts = time.time()
     while (time.time()-ts) < move_t:
         # print(move_t, time.time()-ts)
@@ -197,6 +197,7 @@ def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     x_G = x
     y_G = y
     z_G = z
+    print(x,y,z)
 
 def init_cfa(s_handle, max_accel, home_offset):
     # to 3d printer home
@@ -212,7 +213,11 @@ def init_cfa(s_handle, max_accel, home_offset):
         print(wait-i)
         time.sleep(1)
 
-def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,home_offset,ref_loc_mm,dz=0.05,fz=50,f_thresh_N=1):
+def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,dz=0.05,fz=50,f_thresh_N=1):
+    """
+    Descr: Runs a mesh bed leveling sequence on the DUT obtaining the offset of the DUT surface from the z hover point.
+    The surface is determined to be touched when the force applied to the toolhead is > f_thresh_N.
+    """
     global z_mesh
     # move on top of mid DUT
     gcode_move_wait(s_handle,z=hover_z_mm,with_offset=0)
@@ -224,6 +229,7 @@ def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,home_offset,ref
         f_N = 0
         z_step = 0
         while f_N < f_thresh_N:
+            # print(hover_z_mm,dz,z_step)
             gcode_move_wait(s_handle,z=hover_z_mm-dz*z_step, f=fz) # slow push
             z_step = z_step + 1
             f_N = load_handle.force_N
@@ -235,18 +241,26 @@ def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,home_offset,ref
     print(z_mesh)
 
 def get_pos(s_handle):
+    max_count = 100
     x_curr,y_curr,z_curr = 0,0,0
+    s_handle.readlines()
     send_gcode(s_handle,"M114")
+    time.sleep(0.001)
     rx_buf = s_handle.readline().decode()
-    while(not 'ok' in rx_buf):
+    while((not 'X:' in rx_buf) and max_count):
         print(rx_buf)
-        if not 'X:' in rx_buf:
-            return None
-        pos_raw = m114_exp.findall(rx_buf)
-        x_curr = pos_raw[3][1]
-        y_curr = pos_raw[4][1]
-        z_curr = pos_raw[5][1]
         rx_buf = s_handle.readline().decode()
+        max_count -= max_count
+        send_gcode(s_handle,"M114")
+        
+    if not max_count:
+        input("Position not found. Printer spitting out rubbish. Continue?")
+        return None
+    pos_raw = m114_exp.findall(rx_buf)
+    x_curr = pos_raw[3][1]
+    y_curr = pos_raw[4][1]
+    z_curr = pos_raw[5][1]
+        
     return [x_curr,y_curr,z_curr]
 
 
@@ -258,6 +272,10 @@ def writemove_gcode(f_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     global x_G
     global y_G
     global z_G
+    if with_offset and not x==None:
+        x = x + home_offset_mm[0]+ref_loc_mm[0]
+    if with_offset and not y==None:
+        y = y + home_offset_mm[1]+ref_loc_mm[1]
     if x == None:
         x = x_G
     if y == None:
@@ -269,50 +287,64 @@ def writemove_gcode(f_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     move_t = 2*v/a + (move_len - (v**2)/a)/v
     if move_t <= 2*v/a:
         move_t = np.sqrt(2*(move_len/a))
-    if with_offset:
-        x = x + home_offset_mm[0]+ref_loc_mm[0]
-        y = y + home_offset_mm[1]+ref_loc_mm[1]
-    f_handle.write(f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.2f};\n")
+    f_handle.write(f"G{gmove} X{x:.2f} Y{y:.2f} Z{z:.2f} F{f:.0f};\n")
     f_handle.write(f"G04 P{move_t*1000:.2f};\n")
     x_G = x
     y_G = y
     z_G = z
 
 def writepause_gcode(f_handle,t_ms):
-    f_handle.write(f"G04 P{float(t_ms):.2f};\n")
+    f_handle.write(f"G04 P{t_ms:.2f};\n")
 
 def write_gcode_seq(gcode_file, push_points, strain, t_hold_s, thk, hover_z_mm):
+    global x_G
+    global y_G
+    global z_G
     # calc strain distance Zs
     Zs = float(thk) * float(strain)
     if not (gcode_file[-5:] == ".gcode"):
         gcode_file = gcode_file + ".gcode"
+    x_G_prev = x_G
+    y_G_prev = y_G
+    z_G_prev = z_G
     # open gcode file to write in
     with open(gcode_file, 'w') as f:
-        f.write("G90; Set -> abs movement\n")
+        f.write("G90;\n")
         for point in push_points:
             print(f"push point {point}")
             writemove_gcode(f,x=point[0],y=point[1])
-            print("writing")
             writemove_gcode(f,z=-(z_mesh[z_mesh_locs.index(point)]+Zs)+hover_z_mm,f=100)
             writepause_gcode(f,t_hold_s*1000)
+            writemove_gcode(f,z=hover_z_mm)
+            writepause_gcode(f,t_hold_s*1000)
+    writemove_gcode(f,x=ref_loc_mm[0],y=ref_loc_mm[1],z=hover_z_mm,with_offset=0)
+    x_G = x_G_prev
+    y_G = y_G_prev
+    z_G = z_G_prev
     f.close()
     return gcode_file
 
 def send_gcode_seq(s_handle, gcode_file):
     with open(gcode_file,'r') as f:
         gcode = f.readlines()
-    s_handle.write(gcode)
+    for line in gcode:
+        send_gcode(s_handle, line[0:-2])
+        print(line)
+        time.sleep(0.001)
+        print(s_handle.readlines())
+        input("check gcode above?")
 
 def log_pos(s_handle):
     # main position logging function
     global stop_flag
     # define global buffers
-    global v_buf_V
-    global tv_buf_s
-    while not stop_flag:
+    global pos_buf_mm
+    global tpos_buf_s
+    while not (pos_buf_mm[-1][0:2] == ref_loc_mm).all():
         pos_buf_mm.append(get_pos(s_handle))
         tpos_buf_s.append(time.time()-start_time_G)
         time.sleep(0.001)
+    stop_flag = 1
 
 
 
@@ -350,10 +382,12 @@ def main(t_buf, v_buf, i_buf, cycles, i_src_A, nplc, v_max_V, num_elecs=16):
         print(rx_buf)
         rx_buf = cfa.readline()
     init_cfa(cfa, max_accel_G, home_offset_mm)
-    run_cfa_mesh_lvl(cfa,loadcell,z_mesh_locs,hover_z_mm,home_offset_mm,ref_loc_mm) # run mesh bed leveling
-    datetime_zmesh = str(datetime.utcnow()) # TODO Add to pkl file
+    run_cfa_mesh_lvl(cfa,loadcell,z_mesh_locs,hover_z_mm) # run mesh bed leveling
+    z_mesh_datetime = str(datetime.utcnow()) # TODO Add to pkl file
         # send gcode to cfa
     gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm)
+    gcode_move_wait(cfa,z=50)
+    input("continue?")
     send_gcode_seq(cfa, gcode_file)
 
     # COMPLETE EIT & FORCE & POS MEASUREMENTS CONCURRENTLY
@@ -394,7 +428,7 @@ if __name__ == "__main__":
     #             [0,30],[0,-30]]
     z_mesh_locs = [[0,0],[15,0],[30,0]] # TODO
     hover_z_mm = 25
-    datetime_zmesh = str(datetime.utcnow())
+    z_mesh_datetime = str(datetime.utcnow())
     
     # define thread stop flag
     stop_flag = False
@@ -439,13 +473,12 @@ if __name__ == "__main__":
             fab_date = input("Input fabrication date if known? (in format DD-MM-YY):")
 
         # set experiment push parameters
-        t_hold_s = input("Input sample push and hold time [s]:")
+        t_hold_s = float(input("Input sample push and hold time [s]:"))
         strain = float(input("Input sample strain [%]:"))/100
-        # push_points = [[0,0],[0.3*dia_dim_mm,0],[-0.3*dia_dim_mm,0], # default push points
-        #     [0.15*dia_dim_mm,0.15*dia_dim_mm],[-0.15*dia_dim_mm,0.15*dia_dim_mm],
-        #     [0.15*dia_dim_mm,-0.15*dia_dim_mm],[-0.15*dia_dim_mm,-0.15*dia_dim_mm],
-        #     [0,0.3*dia_dim_mm],[0,-0.3*dia_dim_mm]]
-        push_points = [[0,0],[0.3*dia_dim_mm,0],[0.15*dia_dim_mm,0]] # TODO
+        push_points = [[0,0],[0.3*dia_dim_mm,0],[-0.3*dia_dim_mm,0], # default push points
+            [0.15*dia_dim_mm,0.15*dia_dim_mm],[-0.15*dia_dim_mm,0.15*dia_dim_mm],
+            [0.15*dia_dim_mm,-0.15*dia_dim_mm],[-0.15*dia_dim_mm,-0.15*dia_dim_mm],
+            [0,0.3*dia_dim_mm],[0,-0.3*dia_dim_mm]]
         man_pts = input("Manually input push points?")
         if (man_pts == ('y'or 'Y')):
             print(f"push points must be one of the following locs: \n {z_mesh_locs} \n as mesh bed interpolation hasn't been completed yet")
@@ -485,7 +518,7 @@ if __name__ == "__main__":
         # interpolate pos data 
         if len(tpos_buf_s) < len(tv_buf_s):
             print('position reading too slow and will be downsampled!')
-        pos_buf_mm = np.transpose(pos_buf_mm)
+        pos_buf_mm = np.astype(np.transpose(pos_buf_mm),'float64')
         xpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[0])
         ypos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[1])
         zpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[2])
@@ -515,9 +548,9 @@ if __name__ == "__main__":
         # save all params to .pkl file of same name
         eit_sample = PiezoResSample(sample_name, th_dim_mm, dia_dim_mm, fab_date)
         eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
-                                 nplc, cycles, r_adj_mean, PiezoResSample, f_data_N=f_buf_intp_N, x_data_mm=xpos_buf_intp_mm,
-                                  y_data_mm=ypos_buf_intp_mm, z_data_mm=zpos_buf_intp_mm, r_adj_error=r_flag, 
-                                 v_max_error=vmax_flag)
+                                 nplc, cycles, r_adj_mean, eit_sample, f_data_N=f_buf_intp_N, x_data_mm=xpos_buf_intp_mm,
+                                  y_data_mm=ypos_buf_intp_mm, z_data_mm=zpos_buf_intp_mm, z_mesh=z_mesh, z_mesh_locs=z_mesh_locs,
+                                  z_mesh_datetime=z_mesh_datetime, r_adj_error=r_flag, v_max_error=vmax_flag)
         with open(input_filename+".pkl","wb") as fp:
             pkl.dump(eit_test,fp)
 

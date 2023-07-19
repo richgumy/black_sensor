@@ -11,10 +11,13 @@ class EITFDataFrame:
                 i_src_A,
                 v_max_V,
                 nplc,
-                cycles,
+                eit_cycles,
                 r_adj_ohm,
                 PiezoResSample,
                 num_elecs=16,
+                strain=None, # %
+                t_hold_s=None,
+                v_push=None,
                 f_data_N=[],
                 x_data_mm=[],
                 y_data_mm=[],
@@ -22,8 +25,8 @@ class EITFDataFrame:
                 z_mesh=[],
                 z_mesh_locs=[],
                 z_mesh_datetime=None,
-                r_adj_error=0,
-                v_max_error=0):
+                r_adj_error=None,
+                v_max_error=None):
         # inputs
         self.filename = filename # filename e.g. filename = sample_name
         self.time_date = time_date # UTC time and date for taken just before data gathering

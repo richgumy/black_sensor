@@ -429,8 +429,9 @@ def main(t_buf, v_buf, i_buf, i_src_A, nplc, v_max_V, num_elecs=16):
         # send gcode to cfa
     gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm, v_z_push)
     gcode_move_wait(cfa,z=30)
-    print("Material relaxing for 60s... :)")
-    time.sleep(60)
+    post_cal_t_relax = 240
+    print(f"Material relaxing for {post_cal_t_relax}s ... :)")
+    time.sleep(post_cal_t_relax)
     # send_gcode_seq(cfa, gcode_file)
 
     # COMPLETE EIT & FORCE & POS MEASUREMENTS CONCURRENTLY #

@@ -460,6 +460,7 @@ if __name__ == "__main__":
     nplc = 0.01
     v_max_V = 20
     eit_cycles = 0
+    num_elecs = 16
 
     # cfa params
     m114_exp = re.compile("\([^\(\)]*\)|[/\*].*\n|([XYZ]:\s|[XYZ]):?([-+]?[0-9]*\.?[0-9]*)") # M114 regex

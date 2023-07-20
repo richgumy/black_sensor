@@ -553,7 +553,7 @@ if __name__ == "__main__":
         # close all connections
         # interpolate force data 
         if len(tf_buf_s) < len(tv_buf_s):
-            print('Warnging: force reading too slow and will be downsampled!')
+            print('Warning: force reading too slow and will be downsampled!')
         f_buf_intp_N = np.interp(tv_buf_s, tf_buf_s, f_buf_N)
 
         # interpolate pos data 
@@ -567,7 +567,6 @@ if __name__ == "__main__":
         print("CSV file saving...")
         with open(input_filename+'.csv', 'a', newline='') as csvfile:
             csv_data = csv.writer(csvfile, delimiter=',')
-
             csv_data.writerow(["UTC:",date_time_start])
             
             # cut off unsync'd data
@@ -576,16 +575,14 @@ if __name__ == "__main__":
                 max_len = len(tv_buf_s)
             else:
                 max_len = len(v_buf_V)
+            max_len -= max_len%num_elecs**2
+            
 
             # write data to .csv file
             csv_data.writerow(["time_pc [s]", "voltage [V]", "i_src [A]","f [N]","x [mm]","y [mm]","z [mm]"])
             csv_data.writerows(np.transpose([tv_buf_s[0:max_len],v_buf_V[0:max_len],i_buf_A[0:max_len],f_buf_intp_N[0:max_len],
                                              xpos_buf_intp_mm[0:max_len],ypos_buf_intp_mm[0:max_len],zpos_buf_intp_mm[0:max_len]])) 
-        
-        # print out results report
-        r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
-        _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
-        
+        print(f"csv file saved as: {input_filename}.csv")
         # save all params to .pkl file of same name as .csv and .gcode
         eit_sample = PiezoResSample(sample_name, th_dim_mm, dia_dim_mm, fab_date)
         eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
@@ -595,7 +592,12 @@ if __name__ == "__main__":
                                  z_mesh_datetime=z_mesh_datetime, r_adj_error=r_flag, v_max_error=vmax_flag)
         with open(input_filename+".pkl","wb") as fp:
             pkl.dump(eit_test,fp)
+        print(f"pkl file saved as: {input_filename}.pkl")
 
+        # print out results report
+        r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
+        _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
+        
         sys.exit()
         
 

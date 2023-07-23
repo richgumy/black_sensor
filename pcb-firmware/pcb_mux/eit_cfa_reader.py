@@ -382,7 +382,7 @@ def run_push_seq(s_handle,push_points,thk,strain,v_z_push):
         # wait
         log_pos_wait(s_handle, t_hold_s)
     # move to reference location
-    t_wait = gcode_move_wait(s_handle,x=ref_loc_mm[0],y=ref_loc_mm[1],z=hover_z_mm,with_offset=0)
+    t_wait = gcode_move_wait(s_handle,x=home_offset_mm[0],y=home_offset_mm[1],z=hover_z_mm,with_offset=0)
     log_pos_wait(s_handle, t_wait)
     # wait at home
     log_pos_wait(s_handle, t_hold_s)
@@ -585,13 +585,19 @@ if __name__ == "__main__":
             csv_data.writerows(np.transpose([tv_buf_s[0:max_len],v_buf_V[0:max_len],i_buf_A[0:max_len],f_buf_intp_N[0:max_len],
                                              xpos_buf_intp_mm[0:max_len],ypos_buf_intp_mm[0:max_len],zpos_buf_intp_mm[0:max_len]])) 
         print(f"csv file saved as: {input_filename}.csv")
+        
+        # # print out EIT voltage reading results report ## Doesn't work with when eit cycles > 16!!!
+        # r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
+        # _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
+        r_adj_mean = None # remove after fixed above functions
+        
         # save all params to .pkl file of same name as .csv and .gcode
         eit_sample = PiezoResSample(sample_name, th_dim_mm, dia_dim_mm, fab_date)
         eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
                                  nplc, eit_cycles, r_adj_mean, eit_sample, strain=strain, t_hold_s=t_hold_s, v_z_push=v_z_push,
                                  f_data_N=f_buf_intp_N, x_data_mm=xpos_buf_intp_mm, y_data_mm=ypos_buf_intp_mm, 
                                  z_data_mm=zpos_buf_intp_mm, z_mesh=z_mesh, z_mesh_locs=z_mesh_locs, 
-                                 z_mesh_datetime=z_mesh_datetime, r_adj_error=r_flag, v_max_error=vmax_flag)
+                                 z_mesh_datetime=z_mesh_datetime)
         with open(input_filename+".pkl","wb") as fp:
             pkl.dump(eit_test,fp)
         print(f"pkl file saved as: {input_filename}.pkl")

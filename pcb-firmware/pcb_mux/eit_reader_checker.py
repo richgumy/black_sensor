@@ -22,18 +22,23 @@ import matplotlib.pyplot as plt
 
 def get_inter_elec_res(ert_v_data_V, i_src_A, num_elecs=16):
     # Iterates through voltage data and determines all adjacent electrode resistances
+    # ######### experimental ##############
     num_cycles = len(ert_v_data_V)//(num_elecs**2)
     r_elec_arr = np.zeros(((num_elecs*num_cycles),1))
     cycle = 0
-    for i in range(len(ert_v_data_V)):
+    for i in range(len(ert_v_data_V)-len(ert_v_data_V)//num_elecs**2):
         if not (i % (num_elecs+1)):
             cycle = i // num_elecs**2
+            print (f"cycle {cycle} index {i//num_elecs} i {i}")
             r_elec_arr[i//(num_elecs)] = abs(float(ert_v_data_V[i+cycle]))/float(i_src_A)
     r_elec_arr_ = np.reshape(r_elec_arr,(num_cycles,num_elecs))
     r_elec_arr_[1][0] = r_elec_arr_[0][0]
+    print(r_elec_arr_)
     for cycle in range(2,num_cycles):
-        r_elec_arr_[cycle][1:cycle] = r_elec_arr_[cycle][0:cycle-1]
+        print(cycle)
+        r_elec_arr_[cycle][1:cycle%num_elecs] = r_elec_arr_[cycle][0:cycle%num_elecs-1]
         r_elec_arr_[cycle][0] = r_elec_arr_[0][0]
+        print(r_elec_arr_[cycle])
     r_elec_arr_[-1][-1] = r_elec_arr_[-2][-1]
     r_adj_mean = np.mean(r_elec_arr_,0)
     r_adj_range = (np.max(r_elec_arr_,0)-np.min(r_elec_arr_,0))/2

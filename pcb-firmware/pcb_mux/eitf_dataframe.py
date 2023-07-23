@@ -22,6 +22,7 @@ class EITFDataFrame:
                 x_data_mm=[],
                 y_data_mm=[],
                 z_data_mm=[],
+                v_z_push=None,
                 z_mesh=[],
                 z_mesh_locs=[],
                 z_mesh_datetime=None,
@@ -36,13 +37,23 @@ class EITFDataFrame:
         self.i_src_A = i_src_A # constant current source driven for EIT
         self.v_max_V = v_max_V # max drive voltage from the SMU Isrc
         self.nplc = nplc # integration time of the SMU in numbe rof power line cycles
-        self.cycles = cycles # i.e. number of frames that can be reconstructed from 
+        self.eit_cycles = eit_cycles # i.e. number of frames that can be reconstructed from 
         self.num_elecs = num_elecs # number of electrodes
         self.r_adj_ohm = r_adj_ohm # inter-electrode resistances
         self.PiezoResSample = PiezoResSample # must be a PiezoResSample class
         # optional inputs 
+        self.num_elecs = num_elecs,
+        self.strain = strain, # %
+        self.t_hold_s = t_hold_s,
+        self.v_push = v_push,
         self.f_data_N = f_data_N # force data
-        self.xyz_data_mm = xyz_data_mm # arrays for tool center point x,y,z coordinates referenced from the center surface of the DUT
+        self.x_data_mm = x_data_mm # arrays for tool center point x,y,z coordinates referenced from the center surface of the DUT
+        self.y_data_mm = y_data_mm
+        self.z_data_mm = z_data_mm
+        self.v_z_push = v_z_push,
+        self.z_mesh = z_mesh,
+        self.z_mesh_locs = z_mesh_locs,
+        self.z_mesh_datetime = z_mesh_datetime,
         self.r_adj_error = r_adj_error
         self.v_max_error = v_max_error
 

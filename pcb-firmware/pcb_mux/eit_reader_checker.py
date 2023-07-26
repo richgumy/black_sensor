@@ -20,29 +20,38 @@ import pandas as pd
 import numpy as np   
 import matplotlib.pyplot as plt   
 
-def get_inter_elec_res(ert_v_data_V, i_src_A, num_elecs=16):
-    # Iterates through voltage data and determines all adjacent electrode resistances
-    # ######### experimental ##############
-    num_cycles = len(ert_v_data_V)//(num_elecs**2)
-    r_elec_arr = np.zeros(((num_elecs*num_cycles),1))
-    cycle = 0
-    for i in range(len(ert_v_data_V)-len(ert_v_data_V)//num_elecs**2):
-        if not (i % (num_elecs+1)):
-            cycle = i // num_elecs**2
-            print (f"cycle {cycle} index {i//num_elecs} i {i}")
-            r_elec_arr[i//(num_elecs)] = abs(float(ert_v_data_V[i+cycle]))/float(i_src_A)
-    r_elec_arr_ = np.reshape(r_elec_arr,(num_cycles,num_elecs))
-    r_elec_arr_[1][0] = r_elec_arr_[0][0]
-    print(r_elec_arr_)
-    for cycle in range(2,num_cycles):
-        print(cycle)
-        r_elec_arr_[cycle][1:cycle%num_elecs] = r_elec_arr_[cycle][0:cycle%num_elecs-1]
-        r_elec_arr_[cycle][0] = r_elec_arr_[0][0]
-        print(r_elec_arr_[cycle])
-    r_elec_arr_[-1][-1] = r_elec_arr_[-2][-1]
-    r_adj_mean = np.mean(r_elec_arr_,0)
-    r_adj_range = (np.max(r_elec_arr_,0)-np.min(r_elec_arr_,0))/2
-    return r_elec_arr_, r_adj_mean, r_adj_range
+
+def get_inter_elec_res(v_data_V, i_src_A, num_elecs=16):
+    '''
+    Description: 
+    ----------
+        Program finds the interelectrode resistance for each EIT scan.
+        
+    Parameters:
+    ----------
+    v_data_V : float (1,n)array
+        Voltage data from a scan in shape 
+    i_src_A : float
+        Constant curernt source value used for EIT scan
+    num_elecs : int, optional
+        DESCRIPTION. The default is 16.
+
+    Returns:
+    -------
+    r_elec_arr_, r_adj_mean, r_adj_range
+
+    '''
+    v_data_V = np.array(v_data_V)
+    shaped_v_data_V = np.reshape(v_data_V,(len(v_data_V)//num_elecs,num_elecs))
+    num_cycles = len(v_data_V)//(num_elecs**2)
+    r_elec_arr = np.zeros((num_cycles,num_elecs))
+    for i in range(len(shaped_v_data_V)//num_elecs):
+        r_elec_arr[i] = abs(np.diagonal(shaped_v_data_V[num_elecs*i:num_elecs*(i+1)] / (np.eye(num_elecs)*i_src_A)))
+    r_adj_mean = np.mean(r_elec_arr,0)
+    r_adj_range = (np.max(r_elec_arr,0)-np.min(r_elec_arr,0))/2
+    
+    return r_elec_arr, r_adj_mean, r_adj_range
+
 
 
 def report(file_dir, i_src_A, v_max_V=20, num_elecs=16, tol_r_adj=0.02, tol_v_max=0.95):
@@ -88,8 +97,9 @@ def report(file_dir, i_src_A, v_max_V=20, num_elecs=16, tol_r_adj=0.02, tol_v_ma
             print(f"\tE{i}={r_adj_mean_ohm[i]:.2e} \t +/- {r_adj_range_ohm[i]:.2e} Ohm")
     print(f"{(len(title))*'*'}")
     if r_adj_flag:
-        plt.figure(figsize=(12,5))
+        plt.figure(2,figsize=(12,5))
         plt.plot(r_adj_ohm)
+        plt.title('Electrode resistance plot over time')
         plt.xlabel('cycles [n]')
         plt.xlim((0,cycles))
         plt.ylabel('inter-electrode resistance [Ohm]')

@@ -42,7 +42,7 @@ def get_inter_elec_res(v_data_V, i_src_A, num_elecs=16):
 
     '''
     v_data_V = np.array(v_data_V)
-    shaped_v_data_V = np.reshape(v_data_V,(len(v_data_V)//num_elecs,num_elecs))
+    shaped_v_data_V = np.reshape(v_data_V,(len(v_data_V)//num_elecs,num_elecs)).astype(float)
     num_cycles = len(v_data_V)//(num_elecs**2)
     r_elec_arr = np.zeros((num_cycles,num_elecs))
     for i in range(len(shaped_v_data_V)//num_elecs):

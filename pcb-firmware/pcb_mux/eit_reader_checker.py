@@ -41,7 +41,7 @@ def get_inter_elec_res(v_data_V, i_src_A, num_elecs=16):
     r_elec_arr_, r_adj_mean, r_adj_range
 
     '''
-    v_data_V = np.array(v_data_V)
+    v_data_V = np.array(v_data_V[0:16*(len(v_data_V)//16)])
     shaped_v_data_V = np.reshape(v_data_V,(len(v_data_V)//num_elecs,num_elecs)).astype(float)
     num_cycles = len(v_data_V)//(num_elecs**2)
     r_elec_arr = np.zeros((num_cycles,num_elecs))
@@ -99,7 +99,7 @@ def report(file_dir, i_src_A, v_max_V=20, num_elecs=16, tol_r_adj=0.02, tol_v_ma
     if r_adj_flag:
         plt.figure(2,figsize=(12,5))
         plt.plot(r_adj_ohm)
-        plt.title('Electrode resistance plot over time')
+        plt.title(f'Electrode resistance plot over time - {file_dir}')
         plt.xlabel('cycles [n]')
         plt.xlim((0,cycles))
         plt.ylabel('inter-electrode resistance [Ohm]')

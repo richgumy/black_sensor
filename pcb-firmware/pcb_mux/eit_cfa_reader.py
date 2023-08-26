@@ -2,7 +2,7 @@
 FILE: eit_cfa_reader.py
 AUTHOR: R Ellingham
 DATE CREATED: May 2023
-DATE MODIFIED: July 2023
+DATE MODIFIED: Aug 2023
 PROGRAM DESC: Gather EIT and force measurements. Writes the data to a CSV file ready for analysis.
 
 USE CASE: 
@@ -13,9 +13,8 @@ USE CASE:
         > python eit_reader.py <filename> <Isrc_A> <nplc>
     otherwise default values of i_src_A=1e-3, nplc=0.01 will be used.
 
-2) Push Ctrl+C to stop EIT reading, then filename.csv will be saved and plot full electrode cycle
+2) Push Ctrl+C to stop EIT reading, then filename.csv will be saved
     # Note - for this the SMU outputs will remain on
-3) Push Ctrl+C again to close plot
 """
 
 import csv
@@ -53,6 +52,22 @@ z_G = 0
 
 ## loadcell functions
 def log_force_N(loadcell_handle):
+    '''
+    Description
+    -----------
+    Writes force and timestamp values to global buffers f_buf_N and tf_buf_s. 
+    Execution is enabled by an external thread raising the stop_flag.
+
+    Parameters
+    ----------
+    loadcell_handle : obj
+        object for Phidget22 module loadcell.
+
+    Returns
+    -------
+    None.
+
+    '''
     # re-define stop_flag
     global stop_flag
     # re-define data buffers
@@ -68,6 +83,30 @@ def log_force_N(loadcell_handle):
 
 ## smu/eit functions
 def init_smu(smu_handle, i_src_A, v_meas_max_V=20, nplc=0.01, f_baud=115200):
+    '''
+    Description
+    -----------
+    Initialises the SMU as a current source on channel B and voltmeter on 
+    channel A.
+
+    Parameters
+    ----------
+    smu_handle : obj
+        object for K2600 module SMU.
+    i_src_A : float
+        Current source value
+    v_meas_max_V : float, optional
+        Max current source voltage. The default is 20.
+    nplc : float, optional
+        Set the integration time of the SMU measurements. The default is 0.01.
+    f_baud : int, optional
+        Set the baud frequency. The default is 115200.
+
+    Returns
+    -------
+    None.
+
+    '''
     # init smu parameters
     smu_handle.serial.baud(smu_handle, f_baud)
     smu_handle.display.screen(smu_handle,smu_handle.display.SMUA_SMUB) # display both SMUs on screen
@@ -93,12 +132,30 @@ def init_smu(smu_handle, i_src_A, v_meas_max_V=20, nplc=0.01, f_baud=115200):
     print("SMU init'd")
 
 def query_pcbmux(serial_handle, cmd):
-    # send one of the compatible commands: 'ITER', 'GET_STATE', or 'GET_ITER'
-    # and print out response
+    '''
+    Description
+    -----------
+    Sends one of the compatible commands: 'ITER', 'GET_STATE', or 'GET_ITER'
+    and prints out response 
+
+    Parameters
+    ----------
+    serial_handle : obj
+        Serial connection object.
+    cmd : str
+        singular character cmd.
+
+    Returns
+    -------
+    error :
+        Serial obj error.
+
+    '''
+    #
     pcbmux_elec_cmds = {'ITER':'i','GET_STATE':'g','GET_ITER':'i'}
     msg = bytes(pcbmux_elec_cmds[cmd],'utf-8')
     error = serial_handle.write(msg)
-    reply = serial_handle.read() # takes 0.0140s for 115200 baud
+    reply = serial_handle.read() # takes ~ 0.0140s for 115200 baud
     if reply == b'i':
         return error
     while (reply != b''):
@@ -107,13 +164,56 @@ def query_pcbmux(serial_handle, cmd):
     return error
 
 def write_pcbmux(serial_handle, cmd):
+    '''
+    Description
+    -----------
+    Sends one of the compatible commands: 'ITER', 'GET_STATE', or 'GET_ITER'
+
+    Parameters
+    ----------
+    serial_handle : obj
+        Serial connection object.
+    cmd : str
+        singular character cmd.
+
+    Returns
+    -------
+    error :
+        Serial obj error.
+
+    '''
     # send one of the compatible commands: 'ITER', 'GET_STATE', or 'GET_ITER'
     pcbmux_elec_cmds = {'ITER':'i','GET_STATE':'g','GET_ITER':'i'}
     msg = bytes(pcbmux_elec_cmds[cmd],'utf-8')
     error = serial_handle.write(msg)
     return error
 
-def log_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
+def log_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V=20,num_elecs=16):
+    '''
+    Description
+    -----------
+    Writes voltage, current and timestamp values to global buffers v_buf_V,
+    i_buf_A and tv_buf_s. 
+    Execution is enabled by an external thread raising the stop_flag. 
+
+    Parameters
+    ----------
+    smu_handle : obj
+        object for K2600 module SMU.
+    serial_handle : obj
+        Serial connection object.
+    fs_max : float
+        Maximum sample frequency.
+    v_meas_max_V : float, optional
+        Max current source voltage. The default is 20.
+    num_elecs : int, optional
+        Number of electrodes. The default is 16.
+
+    Returns
+    -------
+    None.
+
+    '''
     global eit_cycles # EIT iteration count
     global stop_flag
     # define global buffers
@@ -127,10 +227,10 @@ def log_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
         ## 1. take voltage reading
         t_si = time.time()
         v_meas_V = smu_handle.smua.measure.v(smu_handle)
-        if abs(float(v_meas_V)) > 0.9*v_meas_max_V:
+        if abs(float(v_meas_V)) > 0.99*v_meas_max_V:
             v_meas_V = f"{v_meas_V} MAX VOLTAGE ERROR"
-            print(v_meas_V)
-            input("Press enter to continue")
+            # print(v_meas_V)
+            # input("Press enter to continue")
         if i % num_elecs == 0:
             i_src_act_A = smu_handle.smub.measure.i(smu_handle)
         else:
@@ -159,15 +259,59 @@ def log_eit_data(smu_handle,ser_handle,fs_max,v_meas_max_V,num_elecs=16):
 ## cfa functions
 def send_gcode(s_handle, data):
     '''
-    Descr: ensures all gcode messages are correctly encoded and terminated
+    Description
+    -----------
+    Ensures all gcode messages are encoded and terminated
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    data : str
+        gcode string.
+
+    Returns
+    -------
+    Serial error state
+
     '''
     print(f"sending: {data}")
     return s_handle.write((data+'\n').encode('ascii'))
     
 def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1,wait_off=0):
     '''
-    Descr: Moves to an abs x,y,z [mm] coord at a set speed f [mm/min] using a gmove cmd(0=rapid,1=linear).
-    By default the home+ref offsets are assumed
+    Description
+    -----------
+    Moves to an abs x,y,z [mm] coord at a set speed f [mm/min] using a gmove 
+    cmd(0=rapid,1=linear). Waits until movement is assumed finished.
+    By default the home+ref offsets are assumed.
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    a : float, optional
+        maximum acceleration. The default is max_accel_G.
+    x : float, optional
+        Desired x location. The default is None.
+    y : float, optional
+        Desired y location. The default is None.
+    z : float, optional
+        Desired z location. The default is None.
+    f : int, optional
+        Desired feed rate. The default is 600.
+    gmove : bool, optional
+        DESCRIPTION. The default is 1.
+    with_offset : bool, optional
+        DESCRIPTION. The default is 1.
+    wait_off : bool, optional
+        DESCRIPTION. The default is 0.
+
+    Returns
+    -------
+    t_move_s : float
+        predicted time taken to move.
+
     '''
     global x_G
     global y_G
@@ -202,7 +346,28 @@ def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     print(x,y,z)
     return t_move_s
 
-def init_cfa(s_handle, max_accel, home_offset):
+def init_cfa(s_handle, home_offset, max_accel=max_accel_G):
+    '''
+    Description
+    -----------
+    Initialises cartesian force applicator (Prusa MK3s 3d printer) acceleration
+    and moves to a known reference point
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    home_offset : float list
+        x,y,z coordinates of home offset.
+    max_accel : float, optional
+        maximum acceleration. The default is max_accel_G. (global var)
+
+    Returns
+    -------
+    None.
+
+    '''
+    
     # to 3d printer home
     send_gcode(s_handle,"G28 X Y Z") # CAN ALSO SEND 'G28 W'. DON'T SEND 'G28' ALONE AS THIS WILL COMPLETE MESH BED LEVELLING.
     print('homing now')
@@ -216,11 +381,36 @@ def init_cfa(s_handle, max_accel, home_offset):
         print(wait-i)
         time.sleep(1)
 
-def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,dz=0.05,fz=100,f_thresh_N=1):
-    """
-    Descr: Runs a mesh bed leveling sequence on the DUT obtaining the offset of the DUT surface from the z hover point.
-    The surface is determined to be touched when the force applied to the toolhead is > f_thresh_N.
-    """
+def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,dz=0.05,fz=100,f_thresh_N=0.2):
+    '''
+    Description
+    -----------
+    Run cartesian force aplicator mesh bed leveling which determines the 
+    surface offset of the DUT at various locations
+    
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    loadcell_handle : obj
+        object for Phidget22 module loadcell.
+    z_mesh_locs : float list
+        offset locations.
+    hover_z_mm : float
+        height from home reference location.
+    dz : float, optional
+        z movement step size. The default is 0.05 mm.
+    fz : int, optional
+        z move feedrate. The default is 100 mm/min.
+    f_thresh_N : float, optional
+        force threshold for zero point touch. The default is 1 N.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
     global z_mesh
     # move on top of mid DUT
     gcode_move_wait(s_handle,z=hover_z_mm,with_offset=0)
@@ -244,6 +434,22 @@ def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,dz=0.05,fz=100,
     print(z_mesh)
 
 def get_pos(s_handle):
+    '''
+    Description
+    -----------
+    Gets current position from CFA
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+
+    Returns
+    -------
+    list
+        x,y,z locations.
+
+    '''
     max_count = 10
     x_curr,y_curr,z_curr = 0,0,0
     s_handle.readlines()
@@ -273,7 +479,36 @@ def get_pos(s_handle):
 ## cfa gcode r/w fucntions
 def writemove_gcode(f_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1):
     '''
-    Descr: Moves to an abs x,y,z [mm] coord at a set speed f [mm/min] using a gmove cmd(0=rapid,1=linear)
+    Description
+    -----------
+    Writes gcode cmds for moving to an abs x,y,z [mm] coord at a set speed f [mm/min] 
+    using a gmove cmd(0=rapid,1=linear).
+    By default the home+ref offsets are assumed.
+
+    Parameters
+    ----------
+    f_handle : obj
+        open file obj.
+    a : float, optional
+        maximum acceleration. The default is max_accel_G.
+    x : float, optional
+        Desired x location. The default is None.
+    y : float, optional
+        Desired y location. The default is None.
+    z : float, optional
+        Desired z location. The default is None.
+    f : int, optional
+        Desired feed rate. The default is 600.
+    gmove : bool, optional
+        DESCRIPTION. The default is 1.
+    with_offset : bool, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    t_move_s : float
+        predicted time taken to move.
+
     '''
     global x_G
     global y_G
@@ -301,10 +536,52 @@ def writemove_gcode(f_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     return t_move_s
 
 def writepause_gcode(f_handle,t_ms):
+    '''
+    Description
+    -----------
+    write line of code in file for a pause
+
+    Parameters
+    ----------
+    f_handle : obj
+        open file obj.
+    t_ms : float
+        pause time in ms.
+
+    Returns
+    -------
+    None.
+
+    '''
     f_handle.write(f"G04 P{t_ms:.0f};\n")
 
-def write_gcode_seq(gcode_file, push_points, strain, t_hold_s, thk, hover_z_mm, f_push=20):
-    # OBSELETE #
+def write_gcode_seq(gcode_file, push_points, strain, t_hold_s, thk, hover_z_mm):
+    # OBSELETE FUNCTION #
+    '''
+    Description
+    -----------
+    Writes whole gcode file in a set sequence of push points
+
+    Parameters
+    ----------
+    gcode_file : str
+        gcode filename to save.
+    push_points : float list
+        list of [x,y] locations to push.
+    strain : float
+        strain as a basis point.
+    t_hold_s : float
+        DESCRIPTION.
+    thk : float
+        DUT thickness.
+    hover_z_mm : float
+        height from home reference location.
+
+    Returns
+    -------
+    None.
+
+    '''
     global x_G
     global y_G
     global z_G
@@ -334,6 +611,24 @@ def write_gcode_seq(gcode_file, push_points, strain, t_hold_s, thk, hover_z_mm, 
     return gcode_file
 
 def send_gcode_seq(s_handle, gcode_file):
+    '''
+    Description
+    -----------
+    Sends whole gcode file to a serially connected 3d printer
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    gcode_file : str
+        file to run e.g. gcode_file.gcode.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
     with open(gcode_file,'r') as f:
         gcode = f.readlines()
     for line in gcode:
@@ -344,6 +639,23 @@ def send_gcode_seq(s_handle, gcode_file):
     print(s_handle.readlines())
     
 def log_pos_wait(s_handle, t_wait):
+    '''
+    Description
+    -----------
+    Writes toolhead positions x,y,z and timestamp values to global buffers 
+    pos_buf_mm and tpos_buf_s for a set amount of time
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection obj.
+    t_wait : float
+        wait time in seconds.
+
+    Returns
+    -------
+    None.
+
+    '''
     global pos_buf_mm
     global tpos_buf_s
     ts = time.time()
@@ -353,7 +665,30 @@ def log_pos_wait(s_handle, t_wait):
         tpos_buf_s.append(time.time()-start_time_G)
         time.sleep(0.001)
 
-def run_push_seq(s_handle,push_points,thk,strain,v_z_push):
+def run_push_seq(s_handle,push_points,thk,strain,v_z_push,t_hold_s):
+    '''
+    Main code driving sequence. Sends a sequence of gcode cmds to the 3d printer
+    while logging toolhead positional data. Then returns to the home reference 
+    location.
+
+    Parameters
+    ----------
+    s_handle : obj
+        3d printer serial connection o
+    push_points : float list
+        list of [x,y] locations to push.
+    thk : float
+        DUT thickness.
+    strain : float
+        strain value as a basis point.
+    v_z_push : float
+        push speed mm/min.
+
+    Returns
+    -------
+    None.
+
+    '''    
     # main position logging function
     global stop_flag
     global x_G
@@ -391,14 +726,24 @@ def run_push_seq(s_handle,push_points,thk,strain,v_z_push):
 
 
 
-def main(t_buf, v_buf, i_buf, i_src_A, nplc, v_max_V, num_elecs=16):
-    fs_max = 1000 # max Vmeas sample frequency (limited by how fast the PCB MUX can be MUX'd via serial SPI comms)
+def main():
+    '''
+    Main loop - asking for input parameters running measurement threads.
+
+    Parameters
+    ----------
+    None. But relies on may global variables.
+
+    Returns
+    -------
+    None.
+
+    '''
 
     # setup SMU connection
     rm = pyvisa.ResourceManager()
     available_devs = rm.list_resources()
     smu = K2600(available_devs[0])
-    v_meas_max_V = 20
     init_smu(smu, i_src_A, v_meas_max_V, nplc, uart_baud)
 
     # setup mux PCB serial connection
@@ -418,27 +763,26 @@ def main(t_buf, v_buf, i_buf, i_src_A, nplc, v_max_V, num_elecs=16):
     time.sleep(6)
     cfa.reset_input_buffer()
     time.sleep(0.1)
-        # remove startup rubbish
+        # remove 3d printer startup serial rubbish
     rx_buf = b'_'
     while((not 'ok' in rx_buf.decode()) and len(rx_buf)):
         print(rx_buf)
         rx_buf = cfa.readline()
-    init_cfa(cfa, max_accel_G, home_offset_mm)
+    init_cfa(cfa, home_offset_mm)
     run_cfa_mesh_lvl(cfa,loadcell,z_mesh_locs,hover_z_mm) # run mesh bed leveling
     z_mesh_datetime = str(datetime.utcnow()) # TODO Add to pkl file
-        # send gcode to cfa
-    gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm, v_z_push)
+    gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm) # make gcode
     gcode_move_wait(cfa,z=30)
-    post_cal_t_relax = 240
+    post_cal_t_relax = 240 # post calibration waiting time in secs
     print(f"Material relaxing for {post_cal_t_relax}s ... :)")
     time.sleep(post_cal_t_relax)
-    # send_gcode_seq(cfa, gcode_file)
+    # send_gcode_seq(cfa, gcode_file) # OBSELETE
 
     # COMPLETE EIT & FORCE & POS MEASUREMENTS CONCURRENTLY #
     start_time_G = time.time() # global reference start time
     eit_thread = Thread(target=log_eit_data, args=(smu, mux_s, fs_max, v_meas_max_V))
     force_thread = Thread(target=log_force_N, args=(loadcell,))
-    pos_thread = Thread(target=run_push_seq, args=(cfa,push_points,th_dim_mm,strain,v_z_push))
+    pos_thread = Thread(target=run_push_seq, args=(cfa,push_points,th_dim_mm,strain,v_z_push,t_hold_s))
 
     eit_thread.start()
     force_thread.start()
@@ -457,17 +801,23 @@ def main(t_buf, v_buf, i_buf, i_src_A, nplc, v_max_V, num_elecs=16):
 if __name__ == "__main__":
     import sys
     # data collection params
-    i_src_A = 1e-3
+    i_src_A = 0.9e-3
     nplc = 0.01
-    v_max_V = 20
+    v_meas_max_V = 22
     eit_cycles = 0
     num_elecs = 16
+    fs_max = 1000 # max Vmeas sample frequency (limited by how fast the PCB MUX can be MUX'd via serial SPI comms)
+    # init program arguments to zero
+    sample_name = 0
+    t_hold_s = 0
+    strain = 0
+    fab_date = 0
 
     # cfa params
     m114_exp = re.compile("\([^\(\)]*\)|[/\*].*\n|([XYZ]:\s|[XYZ]):?([-+]?[0-9]*\.?[0-9]*)") # M114 regex
     home_offset_mm = [57.8,14.5] 
     ref_loc_mm = [65,25] # home location (x,y)[mm] relative to the CoM of the DUT
-    hover_z_mm = 22
+    hover_z_mm = 25
     z_mesh_datetime = str(datetime.utcnow())
     
     # define thread stop flag
@@ -495,26 +845,46 @@ if __name__ == "__main__":
 
     try:
         if len(sys.argv)==1:
-            raise Exception("\n\nPlease retry using the terminal format:\n\t>python eit_reader.py <filename> optional:<Isrc_A> <nplc>\n") 
+            raise Exception("\n\nPlease retry using the terminal format:\n\t>python eit_reader.py <filename> optional:<Isrc_A> <v_meas_max_V> <sample_name> <fab_date> <t_hold_s> <strain>(%)\n") 
+
+        # Run program with cmd line arguments
+        if len(sys.argv)>1: 
+            input_filename = sys.argv[1]
+        if len(sys.argv)>2:
+            i_src_A = float(sys.argv[2])
+        if len(sys.argv)>3:
+            v_meas_max_V = float(sys.argv[3])
+        if len(sys.argv)>4:
+            sample_name = sys.argv[4]
+        if len(sys.argv)>5:
+            fab_date = sys.argv[5]
+        if len(sys.argv)>6:
+            t_hold_s = float(sys.argv[6])
+        if len(sys.argv)>7:
+            strain = float(sys.argv[7])/100
 
         # set input sample details
-        sample_name = input("what is your sample name? (e.g. CBSR_9p_1 or rGOSR_pcb_1) ")
+        if not sample_name:
+            sample_name = input("what is your sample name? (e.g. CBSR_9p_1 or rGOSR_pcb_1) ")
+        if not fab_date:
+            fab_date = input("Input fabrication date if known? (in format DD-MM-YY):")
+
         if sample_name[0:4] == 'CBSR':
             th_dim_mm = 4.0
             dia_dim_mm = 100.0
-            fab_date = input("Input sample fabrication date if known? (in format DD-MM-YY): ")
         elif sample_name[0:5] == 'rGOSR':
             th_dim_mm = 3.0
-            dia_dim_mm = 100.0
+            dia_dim_mm = 60.0
             fab_date = '27-05-22'
         else:
             th_dim_mm = float(input("Unknown sample disk dimensions. What thickness in mm? "))
             dia_dim_mm = float(input("What diameter in mm? "))
-            fab_date = input("Input fabrication date if known? (in format DD-MM-YY):")
 
         # set experiment push parameters
-        t_hold_s = float(input("Input sample push and hold time [s]:"))
-        strain = float(input("Input sample strain [%]:"))/100
+        if not t_hold_s:
+            t_hold_s = float(input("Input sample push and hold time [s]:"))
+        if not strain:
+            strain = float(input("Input sample strain [%]:"))/100
 
         # man_pts = input("Manually input push points?")
         # if (man_pts == ('y'or 'Y')):
@@ -526,7 +896,7 @@ if __name__ == "__main__":
         #         pt = input(f"Input x{i},y{i}:")
         #         push_points.append(list(pt.split(',')))
         #         i += 1
-
+        # push_points = []
         push_points = [[0,0],[0.3*dia_dim_mm,0],[-0.3*dia_dim_mm,0], # default push points
             [0.15*dia_dim_mm,0.15*dia_dim_mm],[-0.15*dia_dim_mm,0.15*dia_dim_mm],
             [0.15*dia_dim_mm,-0.15*dia_dim_mm],[-0.15*dia_dim_mm,-0.15*dia_dim_mm],
@@ -534,19 +904,10 @@ if __name__ == "__main__":
         v_z_push = 40 # push speed mm/min
         z_mesh_locs = push_points 
 
-        # Run program with cmd line arguments
-        if len(sys.argv)>1: 
-            input_filename = sys.argv[1]
-        if len(sys.argv)>2:
-            i_src_A = float(sys.argv[2])
-        if len(sys.argv)>3:
-            nplc = float(sys.argv[3])
-        if len(sys.argv)>4:
-            v_max_V = float(sys.argv[4])
-
         date_time_start = str(datetime.utcnow())
+        print(fab_date,t_hold_s,strain)
 
-        main(tv_buf_s, v_buf_V, i_buf_A, i_src_A, nplc, v_max_V)
+        main()
 
     except Exception:
         print(traceback.format_exc())
@@ -562,9 +923,9 @@ if __name__ == "__main__":
         if len(tpos_buf_s) < len(tv_buf_s):
             print('Warning: position reading too slow and will be downsampled!')
         pos_buf_mm = np.transpose(pos_buf_mm).astype('float64')
-        xpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[0])
-        ypos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[1])
-        zpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[2])
+        xpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[0]) - (home_offset_mm[0]+ref_loc_mm[0])
+        ypos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[1]) - (home_offset_mm[1]+ref_loc_mm[1])
+        zpos_buf_intp_mm = np.interp(tv_buf_s, tpos_buf_s, pos_buf_mm[2]) - hover_z_mm
             
         print("CSV file saving...")
         with open(input_filename+'.csv', 'a', newline='') as csvfile:
@@ -593,7 +954,7 @@ if __name__ == "__main__":
         
         # save all params to .pkl file of same name as .csv and .gcode
         eit_sample = PiezoResSample(sample_name, th_dim_mm, dia_dim_mm, fab_date)
-        eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_max_V, 
+        eit_test = EITFDataFrame(input_filename+'.csv', date_time_start, v_buf_V, i_buf_A, tv_buf_s, i_src_A, v_meas_max_V, 
                                  nplc, eit_cycles, r_adj_mean, eit_sample, strain=strain, t_hold_s=t_hold_s, v_z_push=v_z_push,
                                  f_data_N=f_buf_intp_N, x_data_mm=xpos_buf_intp_mm, y_data_mm=ypos_buf_intp_mm, 
                                  z_data_mm=zpos_buf_intp_mm, z_mesh=z_mesh, z_mesh_locs=z_mesh_locs, 
@@ -603,8 +964,8 @@ if __name__ == "__main__":
         print(f"pkl file saved as: {input_filename}.pkl")
 
         # print out results report
-        r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
-        _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
+        # r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
+        # _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_V, i_src_A)
         
         sys.exit()
         

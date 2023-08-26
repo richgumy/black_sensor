@@ -58,7 +58,7 @@ class EITFDataFrame:
         self.v_max_error = v_max_error
 
     def __str__(self):
-        return f"Class for EIT scan data for '{self.PiezoResSample.sample_name}' \n *use .disp_all() to display all data"
+        return f"Class for EIT scan data for '{self.PiezoResSample.sample_name}' \n *use .disp_attr() to display all data"
     
     def disp_attr(self):
         print(self.PiezoResSample.__dict__)

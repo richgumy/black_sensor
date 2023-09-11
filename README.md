@@ -83,10 +83,11 @@ EIDORS was used as the library for image reconstruction using the data gathered 
 
 ### Features:
 - Reconstructs image in realtime using serial data.
-- Save images for gif generation
-- See EIDORS documentation for extensive feature list: http://eidors3d.sourceforge.net/index.shtml
+- Save images for video generation
+- See EIDORS documentation for an extensive feature list: http://eidors3d.sourceforge.net/index.shtml
+- Timestamped FEM and measurement data exported to .pkl files.
+
 ### Future Features:
-- Timestamped FEM and measurement data exported to CSV files.
 - Optimise reconstruction by porting all functionality to C++ or for use with a TPU/GPU.
 
 ## 4 - Sensor domain mechanical parts

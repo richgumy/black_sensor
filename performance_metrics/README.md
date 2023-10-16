@@ -1,3 +1,3 @@
-## Performance metrics for the spatial temporal and stress resolution of this EIT based pressure sensor
+## Performance metrics for the SPATIAL, TEMPORAL and STRESS resolution/performance of this EIT based pressure sensor
 
 See the notebooks in this directory for more info.

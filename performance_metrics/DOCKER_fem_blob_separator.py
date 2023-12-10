@@ -1,14 +1,27 @@
 # Author - R Ellingham
 # Date - 30 Nov 2023
 # Descr - Use blob separation function from PyMesh package through docker to do blob separation externally then save data 
-#   in a pkl file for further processing
+#   in a pkl file for further processing. This program applies a threshold percentage mask to the mesh. This forms amorphous
+#   shapes within the 2D mesh, blobs. These blobs are then separated and saved in an array and stored in a pkl file.
+
+# Note: This script was created because PyMesh is not available to build on Windows, so a Docker image is required.
 
 #   cmdline docker cmd for interactive terminal with access to pkl file directory:
 # C:\Users\rel80>docker run -it -v "/c/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code://external" pymesh/pymesh sh -c "cd ../external && python"
 
-#     cmdline docker cmd to run this program:
-# os.system("docker run -v \"/c/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code://external\" pymesh/pymesh sh -c \"cd ../external && python /external/eit_analysis/DOCKER_fem_blob_separator.py\"")
-
+#   Cmd to run this program (in docker terminal):
+#   docker run -v \"/c/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code://external\" pymesh/pymesh sh -c \"cd ../external && python /external/eit_analysis/DOCKER_fem_blob_separator.py\"
+#   OR (in python script):
+#     import subprocess
+#     docker_command = [
+#         "docker", "run",
+#         "-v", "/c/Users/rel80/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/1.0 Code:/external",
+#         "pymesh/pymesh", "sh", "-c",
+#         f"cd ../external && python /external/eit_analysis/DOCKER_fem_blob_separator.py {eit_data_file} {raw_data_dir} {frame}"
+#     ]
+#   subprocess.run(docker_command, shell=False)
+# 
+# TODO: Add support for a frame array
 
 ## IMPORT LIBS
 import numpy as np

@@ -1,6 +1,8 @@
-## Performance metrics for the SPATIAL, TEMPORAL and STRESS resolution/performance of this EIT based pressure sensor
+## Performance metrics for the performance of the black sensor
 
-See the notebooks in this directory for more info.
+This directory contains code to help gather data for the SPATIAL, TEMPORAL and STRESS resolution/performance of this EIT based pressure sensor. There are also many functions and code blocks for various desirable mesh manipulation functionality.
+
+**See the notebooks in this directory for more info.**
 
 To run the DOCKER_fem_blob_separator.py in another python script use:
 ```python

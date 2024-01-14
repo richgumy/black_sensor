@@ -38,6 +38,8 @@ This system consists of a SPI controlled 4:16 multiplexer (MUX) PCB used control
 - Miniatruise and move all this system's functionality to the ERT PCB
 
 ## 2 - ERT PCB firmware
+To run a test with the Cartesian force applicator see instructions in directory [here](pcb-firmware/pcb_mux/README.md)
+
 ### 2.1 - ERT PCB
 The PCB firmware is all written in C for the ESP32-WROOM SoC connected to a custom 'ERT PCB'. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB UART serial connection.
 The basic electrode drive process is:

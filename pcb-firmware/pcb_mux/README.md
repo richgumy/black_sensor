@@ -12,6 +12,8 @@ format = 'r' for raw data. Else output EIT reconstruction friendly format
 
 All other are optional and otherwise default to num_cycles = 15, Isrc_A = 1 mA, nplc = 0.01
 
+Load order:
+![image](https://github.com/richgumy/black_sensor/assets/14900898/cdfc24ae-b968-4236-8506-cd4593f8a3f5)
 
 
 ## System pinout

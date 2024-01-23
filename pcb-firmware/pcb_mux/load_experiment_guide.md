@@ -1,8 +1,8 @@
 # Experiement operation guide
 This is a rough guide on how to setup a mulit-load (nine load) EIT experiment with the below setup.
 
-![image](https://github.com/richgumy/black_sensor/assets/14900898/7f64d337-f059-4093-b3b1-f14167e13c85)
-![image](https://github.com/richgumy/black_sensor/assets/14900898/e8aeedb7-f97e-46c6-aa1b-f5f7d5d6639e)
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/7f64d337-f059-4093-b3b1-f14167e13c85" width="300"/>
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/e8aeedb7-f97e-46c6-aa1b-f5f7d5d6639e" width="300"/>
 
 ## 1 - Check Hardware
 The hardware required for this experiment includes: a Keithley 2634b SMU, DC power supply ($\pm20 V$), ESP32 dev board, custom MUX PCB, sensing domain under test (DUT), 8-16 electrode harness, and the cartesian force applicator (CFA).
@@ -12,7 +12,8 @@ Connect the SMU, ESP32, DC power supply, and DUT as shown in the [SMU-PCB-ESP pi
 Connect the USB serial cables to the SMU, ESP32, and CFA (loadcell and 3d printer frame).
 
 Attach each of the electrodes of the DUT to the MUX PCB cable harness. Ensure that the DUT is centered and the electrodes are aligned with the markings.
-![image](https://github.com/richgumy/black_sensor/assets/14900898/9dc37324-ac0d-482a-8dc1-cd9f36d1c197)
+
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/9dc37324-ac0d-482a-8dc1-cd9f36d1c197" width="200"/>
 
 
 ## 2 - Edit Batch Script

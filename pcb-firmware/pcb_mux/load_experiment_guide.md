@@ -1,8 +1,8 @@
 # Experiement operation guide
 This is a rough guide on how to setup a mulit-load (nine load) EIT experiment with the below setup.
 
-<img src="https://github.com/richgumy/black_sensor/assets/14900898/7f64d337-f059-4093-b3b1-f14167e13c85" width="300"/>
-<img src="https://github.com/richgumy/black_sensor/assets/14900898/e8aeedb7-f97e-46c6-aa1b-f5f7d5d6639e" width="300"/>
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/7f64d337-f059-4093-b3b1-f14167e13c85" width="400"/>
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/e8aeedb7-f97e-46c6-aa1b-f5f7d5d6639e" width="250"/>
 
 ## 1 - Check Hardware
 The hardware required for this experiment includes: a Keithley 2634b SMU, DC power supply ($\pm20 V$), ESP32 dev board, custom MUX PCB, sensing domain under test (DUT), 8-16 electrode harness, and the cartesian force applicator (CFA).

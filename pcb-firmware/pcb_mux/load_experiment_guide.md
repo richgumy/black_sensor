@@ -9,6 +9,7 @@ The hardware required for this experiment includes: a Keithley 2634b SMU, DC pow
 
 Connect the SMU, ESP32, DC power supply, and DUT as shown in the [SMU-PCB-ESP pin connection table](https://github.com/richgumy/black_sensor/tree/main/pcb-firmware/pcb_mux#smu-pcb-esp-pin-connections)
 
+Connect the USB serial cables to the SMU, ESP32, and CFA (loadcell and 3d printer frame).
 
 ## 2 Edit Batch Script
 To run a batch of experiments iterating through different strain values and repeating trials a bash script is used.
@@ -38,4 +39,4 @@ If setting up a new control computer several things need to be done.
 
 You will need to obtain all of the python dependencies from the ```eit_cfa_reader.py``` code.
 
-You will need to mannually redefine the COM ports for the 
+You will need to manually redefine the COM ports in the ```eit_cfa_reader.py``` code.

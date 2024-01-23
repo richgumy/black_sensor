@@ -21,7 +21,7 @@ All other are optional and otherwise default to num_cycles = 15, Isrc_A = 1 mA, 
 TODO: Run a set of experiments with batch_run_exp.sh
 
 
-## System pinout
+## SMU-PCB-ESP Pin Connections
 
 | **SMU Signal** | **MUX PCB Pin** | **Signal** | **ESP32 Pin** |
 |:--------------:|:---------------:|:----------:|:-------------:|

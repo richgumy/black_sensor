@@ -23,6 +23,8 @@ TODO: Run a set of experiments with batch_run_exp.sh
 
 ## SMU-PCB-ESP Pin Connections
 
+Connect VDD, VSS, and GND from the MUX PCB to the DC power supply. Set DC power supply output, VDD/VSS to the max voltage expected through the MUX. VDD/VSS max = 20 V.
+
 | **SMU Signal** | **MUX PCB Pin** | **Signal** | **ESP32 Pin** |
 |:--------------:|:---------------:|:----------:|:-------------:|
 |     smub hi    |      Out2 B     |    Isrc    |      N/A      |

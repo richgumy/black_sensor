@@ -21,7 +21,7 @@ To run a batch of experiments iterating through different strain values and repe
 
 1. Open ```batch_run_exp.sh``` code
 
-2. Edit the ```filepath``` and ```filename``` using descriptive naming. E.g. "DEA1_CBSR_8p_1_9push_strain_120s_1mA" tells us it's a 1 mm thick sample, is made from CBSR, is sample #1, the experiment is 9 pushes, the strain hold time is 120 s, and the current source is set to a constant 1 mA.
+2. Edit the ```filepath``` and ```filename``` using descriptive naming. E.g. "DEA1_CBSR_8p_1_9push_strain_120s_1mA" tells us it's a 1 mm thick sample, is made from CBSR, is sample #1, the experiment is 9 pushes, the strain hold time is 120 s, and the current source is set to a constant 1 mA. **Please check you're not overwriting any existing file, there is no warning for this.**
 
 3. If creating a new directory for ```filepath``` make an ```images``` sub-directory.
 

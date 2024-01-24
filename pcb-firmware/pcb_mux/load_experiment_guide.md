@@ -36,6 +36,10 @@ To run a batch of experiments iterating through different strain values and repe
   
 2. Enter ```./batch_run_exp.sh```
 
+3. Watch the calibration sequence to check for crashes or wires snagging.
+
+4. Leave it and relax :)
+
 # Notes
 
 ## Force applicator looking like it will crash?

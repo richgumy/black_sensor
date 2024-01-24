@@ -38,6 +38,9 @@ To run a batch of experiments iterating through different strain values and repe
 
 # Notes
 
+## Force applicator looking like it will crash?
+It has crash detection however this only kicks in after a reasonable amount of force has been applied. **Just power off the 3D printer frame immediately if needed.**
+
 ## Setting up a new computer?
 
 If setting up a new control computer several things need to be done. 

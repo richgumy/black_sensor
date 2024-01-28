@@ -11,7 +11,9 @@ Connect the SMU, ESP32, DC power supply, and DUT as shown in the [SMU-PCB-ESP pi
 
 Connect the USB serial cables to the SMU, ESP32, and CFA (loadcell and 3d printer frame).
 
-Attach each of the electrodes of the DUT to the MUX PCB cable harness. Ensure that the DUT is centered and the electrodes are aligned with the markings. Once all electrodes are connected you can test the inter-electrode resistance on the 16-pin header on the MUX PCB connected directly to each electrode or run ```eit_reader.py``` and check the output file using ```eit_reader_checker.py```.
+Attach each of the electrodes of the DUT to the MUX PCB cable harness. Ensure that the DUT is centered and the electrodes are aligned with the markings. Once all electrodes are connected you can test the inter-electrode resistance on the 16-pin header on the MUX PCB connected directly to each electrode or run ```eit_reader.py``` and check the output file using ```eit_reader_checker.py```. 
+
+Ensure that the acrylic alignment panel is completely flat/parallel with the 3D printer bed. Ensure the electrode wires won't collide with the force applicator head as is completes its testing.
 
 <img src="https://github.com/richgumy/black_sensor/assets/14900898/9dc37324-ac0d-482a-8dc1-cd9f36d1c197" width="200"/>
 

@@ -1,20 +1,29 @@
 # _PCB MUX with SMU_
 
-Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern using an ESP32 microcontroller. We are using a Keithely 2634b SMU, but this can easily be changed out for any programmable current source and voltage measuring unit. Use the pcb_mux driectory above for programming the ESP32 using ESP-IDF. 
+Code to multiplex a current source and voltage measurements for Electrical Impedance Tomography using an adjacent electrode current injection pattern using an ESP32 microcontroller. We are using a Keithely 2634b SMU, but this can easily be changed out for any programmable current source and voltage measuring unit. Use the pcb_mux directory above for programming the ESP32 using ESP-IDF. 
 
-To run an ERT collection cycle run:
+## Run an ERT collection cycle 
+
+In a terminal in the pcb_mux directory run:
 
 `> python eit_reader.py <filename> <format> <num_cycles> <Isrc_A> <nplc>`
 
-filename = file name not inlc. '.csv'
+filename = file name, not inlc. '.csv'
 
-format = 'r' for raw data. Else output EIT reconstruction friendly format
+format = 'r' for raw data. Else output EIT reconstruction-friendly format
 
 All other are optional and otherwise default to num_cycles = 15, Isrc_A = 1 mA, nplc = 0.01
 
+<img src="https://github.com/richgumy/black_sensor/assets/14900898/cdfc24ae-b968-4236-8506-cd4593f8a3f5" width="500"/>
+
+*Force applicator load order and locations*
+
+TODO: Run a set of experiments with batch_run_exp.sh
 
 
-## System pinout
+## SMU-PCB-ESP Pin Connections
+
+Connect VDD, VSS, and GND from the MUX PCB to the DC power supply. Set DC power supply output, VDD/VSS to the max voltage expected through the MUX. VDD/VSS max = 20 V.
 
 | **SMU Signal** | **MUX PCB Pin** | **Signal** | **ESP32 Pin** |
 |:--------------:|:---------------:|:----------:|:-------------:|

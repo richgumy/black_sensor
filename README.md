@@ -13,6 +13,7 @@ A low cost PCB has been developed to capture the ERT data in reatime, which is s
 
 ## 1 - ERT PCB hardware
 The hardware driving the ERT sensor consist of either one custom ERT PCB or a MUX PCB used with an ESP32 development board and source measurement unit (SMU). All of the files to create the hardware are given as raw KiCad files. All of the component libraries may not exist so will need to made manually or imported.
+[SMU PCB pinout here](/pcb-firmware/pcb_mux/README.md)
 ### 2.1 - ERT PCB
 This board is for ERT data collection limited to sensor domains which have lower resisitances throughout the entirety of its intended use. The adjacent electrode resistance must not exceeed approx. 5 $k\Omega$.
 #### Features:
@@ -37,6 +38,8 @@ This system consists of a SPI controlled 4:16 multiplexer (MUX) PCB used control
 - Miniatruise and move all this system's functionality to the ERT PCB
 
 ## 2 - ERT PCB firmware
+To run a test with the Cartesian force applicator see instructions in directory [here](pcb-firmware/pcb_mux/README.md)
+
 ### 2.1 - ERT PCB
 The PCB firmware is all written in C for the ESP32-WROOM SoC connected to a custom 'ERT PCB'. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB UART serial connection.
 The basic electrode drive process is:

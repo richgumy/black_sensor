@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "black_sensor_array_EIT_1-rescue")(type "Legacy")(uri "C:/Users/richi/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/5.0 CAD/elecCAD/black_sensor_array/KiCAD/black_sensor_array_EIT_1-rescue.lib")(options "")(descr ""))
+  (lib (name "OPA2991IDR")(type "KiCad")(uri "C:/Users/richi/OneDrive - University of Canterbury/Postgrad/6. Projects/2. Pressure sensor array/5.0 CAD/elecCAD/black_sensor_array/KiCAD/OPA2991IDR.kicad_sym")(options "")(descr ""))
+)

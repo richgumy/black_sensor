@@ -136,7 +136,7 @@ def log_eit_data(ser_handle,v_meas_max_V=20, num_elecs=16):
 
         tv_buf_s.append(tstamp)
         i_buf_A.append(i_src_act_A)
-        v_buf_bit.append(float(v_meas))
+        v_buf_bit.append(v_meas)
 
         if not i % num_elecs**2:
             print(f"ERT cycle {i//num_elecs**2}")
@@ -823,7 +823,7 @@ if __name__ == "__main__":
         #     print(f"Strains requested: {strain*100}")
         #     raise Exception(f"Strain limit of {strain_limit*100} % exceeded. Please revise your settings.")
         
-        date_time_start = str(datetime.utcnow())
+        date_time_start = str(datetime.now())
         print(fab_date,t_hold_s,strain)
 
         main()
@@ -852,11 +852,12 @@ if __name__ == "__main__":
             csv_data.writerow(["UTC:",date_time_start])
             
             # cut off unsync'd data
-            max_len = 0
-            if len(v_buf_bit) > len(tv_buf_s):
-                max_len = len(tv_buf_s)
-            else:
-                max_len = len(v_buf_bit)
+            # max_len = 0
+            # if len(v_buf_bit) > len(tv_buf_s):
+            #     max_len = len(tv_buf_s)
+            # else:
+            #     max_len = len(v_buf_bit)
+            max_len = len(v_buf_bit)
             max_len -= max_len % num_elecs**2
 
             # write data to .csv file
@@ -865,9 +866,6 @@ if __name__ == "__main__":
                                              xpos_buf_intp_mm[0:max_len],ypos_buf_intp_mm[0:max_len],zpos_buf_intp_mm[0:max_len]])) 
         print(f"csv file saved as: {input_filename}.csv")
         
-        # # print out EIT voltage reading results report ## Doesn't work with when eit cycles > 16!!!
-        # r_flag, vmax_flag = eit_reader_checker.report(input_filename+'.csv',i_src_A) 
-        # _, r_adj_mean, _ = eit_reader_checker.get_inter_elec_res(v_buf_bit, i_src_A)
         r_adj_mean = None # remove after fixed above functions
         
         # save all params to .pkl file of same name as .csv and .gcode

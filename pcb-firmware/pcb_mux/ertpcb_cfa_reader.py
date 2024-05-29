@@ -32,7 +32,7 @@ import pyvisa
 import re
 import serial
 import serial.tools.list_ports
-from threading import Thread
+from threading import Thread, Lock
 import time
 import traceback
 
@@ -85,9 +85,30 @@ def log_force_N(loadcell_handle):
 
 ## smu/eit functions
 def Vadc2Vreal(Vadc,gain=0.232,Vref=5,n_adc=16):
+    '''
+    Description
+    -----------
+    Converts raw n-bit ADC value to input voltage for ERT PCB v1.3    
+
+    Parameters
+    ----------
+    Vadc : int
+        raw bit voltage data
+    gain: float
+        expected total gain of opamp circuit
+    Vref: float
+        ADC voltage reference
+    n_adc: int
+        ADC resolution (n bits)
+
+    Returns
+    -------
+    None.
+
+    '''
     return Vadc * Vref / (2**n_adc * gain)
 
-def log_eit_data(ser_handle,v_meas_max_V=20, num_elecs=16):
+def log_eit_data(ser_handle, lock, v_meas_max_V=20, num_elecs=16):
     '''
     Description
     -----------
@@ -107,30 +128,62 @@ def log_eit_data(ser_handle,v_meas_max_V=20, num_elecs=16):
     global eit_cycles # EIT iteration count
     global stop_flag
     # define global buffers
+    global i_buf_A
     global v_buf_bit
     global tv_buf_s
     i = 0
+    i_frame = 0
     v_meas = ''
 
     print("LISTENING FOR ERT PCB...")
-    while v_meas != b'A\r':
+    while v_meas != b'A':
         if ser_handle.in_waiting > 0:
-            v_meas = ser_handle.read_until(b'\r')
+            v_meas = ser_handle.read_until(b'\r')[0:-1]
             print(v_meas)
-        print("BEGINNING ERT DATA CAPTURE!")
-
+    print("BEGINNING ERT DATA CAPTURE!")
+    
     while not stop_flag:
         ## 1. take voltage reading
         t_si = time.time()
         if ser_handle.in_waiting > 0:
-          v_meas = ser_handle.read_until(b'\r')
-          if v_meas == b'A\r': # skip 'A\r' each frame
-            v_meas = ser_handle.read_until(b'\r')
-        if Vadc2Vreal(float(v_meas)) > 0.99*v_meas_max_V:
+          v_meas = ser_handle.read_until(b'\r')[0:-1]
+          i_frame += 1
+
+          if v_meas == b'A': # 'A' signals a new frame
+            # lock.acquire()
+            # print(f"{i_frame} i_frame")
+            if i_frame != num_elecs**2: # check for any dropped error messages
+                # remove partial frames
+                tv_buf_s = tv_buf_s[0:-i_frame]
+                frame_offset_err = len(tv_buf_s) % num_elecs**2
+
+                if frame_offset_err != 0:
+                    # raise TypeError("Oops, ERT serial dropout detector not working!")
+                    print("ERT serial dropout detector not working!")
+                    print(f"frame offset error: {frame_offset_err}")
+                    print(f"i_frame {i_frame}")
+                    print(f"length of v_buf = {len(tv_buf_s)}")
+                    print("attempting to fix...")
+                    
+                tv_buf_s = tv_buf_s[0:-(i_frame+frame_offset_err)]
+                i_buf_A = i_buf_A[0:-(i_frame+frame_offset_err)]
+                v_buf_bit = v_buf_bit[0:-(i_frame+frame_offset_err)]
+                eit_cycles -= (i_frame+frame_offset_err // num_elecs**2) + 1
+                v_meas = b'' 
+                while v_meas != b'A':
+                    if ser_handle.in_waiting > 0:
+                        v_meas = ser_handle.read_until(b'\r')[0:-1]
+            i_frame = 0
+            v_meas = ser_handle.read_until(b'\r')[0:-1]
+
+        if v_meas.isdigit() and (Vadc2Vreal(float(v_meas)) > 0.995*v_meas_max_V):
             v_meas = f"{int(v_meas)} MAX VOLTAGE ERROR"
-            # print(v_meas_V)
-            # input("Press enter to continue")
-        i_src_act_A = np.nan # no Isrc measurement available on ERT PCB
+            print(v_meas)
+        elif not v_meas.isdigit():
+            v_meas = f"{v_meas} ISALPHA ERROR"
+            print(v_meas)
+
+        i_src_act_A = np.nan # no Isrc measurement available on ERT PCB v1.3
         ts = time.time()
         tstamp = ts - start_time_G # sample timestamp
 
@@ -139,8 +192,9 @@ def log_eit_data(ser_handle,v_meas_max_V=20, num_elecs=16):
         v_buf_bit.append(v_meas)
 
         if not i % num_elecs**2:
-            print(f"ERT cycle {i//num_elecs**2}")
+            # print(f"ERT cycle {i//num_elecs**2}")
             eit_cycles += 1
+        # lock.release()
         i += 1
 
 
@@ -163,7 +217,7 @@ def send_gcode(s_handle, data):
     Serial error state
 
     '''
-    print(f"sending: {data}")
+    # print(f"sending: {data}")
     return s_handle.write((data+'\n').encode('ascii'))
     
 def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,with_offset=1,wait_off=0):
@@ -231,7 +285,7 @@ def gcode_move_wait(s_handle,a=max_accel_G,x=None,y=None,z=None,f=600,gmove=1,wi
     x_G = x
     y_G = y
     z_G = z
-    print(x,y,z)
+    # print(x,y,z)
     return t_move_s
 
 def init_cfa(s_handle, home_offset, max_accel=max_accel_G):
@@ -315,6 +369,7 @@ def run_cfa_mesh_lvl(s_handle,load_handle,z_mesh_locs,hover_z_mm,dz=0.05,fz=100,
             z_step = z_step + 1
             f_N = load_handle.force_N
             print(f"{f_N:.2e}N")
+        print(f"mesh point {i} set")
         z_mesh.append(round(z_step*dz,2))
         gcode_move_wait(s_handle,z=hover_z_mm)
         print(f"x,y,z={get_pos(s_handle)}")
@@ -345,10 +400,10 @@ def get_pos(s_handle):
     time.sleep(0.001)
     rx_buf = s_handle.readline().decode()
     while((not 'X:' in rx_buf) and max_count):
-        print(rx_buf)
+        # print(rx_buf)
         rx_buf = s_handle.readline().decode()
         max_count -= 1
-        print(max_count)
+        # print(max_count)
         send_gcode(s_handle,"M114")
         
     if not max_count:
@@ -546,7 +601,7 @@ def log_pos_wait(s_handle, t_wait):
     ts = time.time()
     while (time.time() - ts) < t_wait:
         pos_buf_mm.append(get_pos(s_handle))
-        print(pos_buf_mm[-1])
+        # print(pos_buf_mm[-1])
         tpos_buf_s.append(time.time()-start_time_G)
         time.sleep(0.001)
 
@@ -587,7 +642,7 @@ def run_push_seq(s_handle,push_points,thk,strain,v_z_push,t_hold_s):
     send_gcode(s_handle,"G90")
     for ind, point in enumerate(push_points):
         Zs = float(thk) * float(strain[ind]) # calc strain distance Zs
-        print(f"push point {point}")
+        print(f"Starting push point {ind} at {point}")
         # move x,y to point
         t_wait = gcode_move_wait(s_handle,x=point[0],y=point[1],wait_off=1)
         log_pos_wait(s_handle, t_wait)
@@ -650,14 +705,15 @@ def main():
     z_mesh_datetime = str(datetime.now()) # TODO Add to pkl file
     gcode_file = write_gcode_seq(input_filename, push_points, strain, t_hold_s, th_dim_mm, hover_z_mm) # make gcode
     gcode_move_wait(cfa,z=40)
-    post_cal_t_relax = 240 # post calibration waiting time in secs
+    post_cal_t_relax = 10 # post calibration waiting time in secs
     print(f"Material relaxing for {post_cal_t_relax}s ... :)")
     time.sleep(post_cal_t_relax)
     # send_gcode_seq(cfa, gcode_file) # OBSELETE
+    eit_lock = Lock() # use this if other threads hogging print function (stdout)
 
     # COMPLETE EIT & FORCE & POS MEASUREMENTS CONCURRENTLY #
     start_time_G = time.time() # global reference start time
-    eit_thread = Thread(target=log_eit_data, args=(ert_s, v_meas_max_V))
+    eit_thread = Thread(target=log_eit_data, args=(ert_s, eit_lock, v_meas_max_V))
     force_thread = Thread(target=log_force_N, args=(loadcell,))
     pos_thread = Thread(target=run_push_seq, args=(cfa,push_points,th_dim_mm,strain,v_z_push,t_hold_s))
 
@@ -697,9 +753,9 @@ if __name__ == "__main__":
     # home_offset_mm = [59.3,13.0] # for altered DEA.5 test
     # ref_loc_mm = [65,40] # home location (x,y)[mm] relative to the CoM of the DUT for regular DEA test
     ref_loc_mm = [65,25] # home location (x,y)[mm] relative to the CoM of the DUT for original EIT test?
-    hover_z_mm = 34
+    hover_z_mm = 26
     v_z_push = 40 # push speed mm/min
-    z_mesh_datetime = str(datetime.utcnow())
+    z_mesh_datetime = str(datetime.now())
     strain_limit = 0.4 # max strain allowed (e.g. strain_limit = 0.4 = 40%)
     
     # define thread stop flag
@@ -836,7 +892,9 @@ if __name__ == "__main__":
         # interpolate force data 
         if len(tf_buf_s) < len(tv_buf_s):
             print('Warning: force reading too slow and will be downsampled!')
+        print(f"len(tv_buf_s)={len(tv_buf_s)} len(tf_buf_s)={len(tf_buf_s)} len(f_buf_N)={len(f_buf_N)}")
         f_buf_intp_N = np.interp(tv_buf_s, tf_buf_s, f_buf_N)
+        
 
         # interpolate pos data 
         if len(tpos_buf_s) < len(tv_buf_s):
@@ -852,12 +910,11 @@ if __name__ == "__main__":
             csv_data.writerow(["UTC:",date_time_start])
             
             # cut off unsync'd data
-            # max_len = 0
-            # if len(v_buf_bit) > len(tv_buf_s):
-            #     max_len = len(tv_buf_s)
-            # else:
-            #     max_len = len(v_buf_bit)
-            max_len = len(v_buf_bit)
+            max_len = 0
+            if len(v_buf_bit) > len(tv_buf_s):
+                max_len = len(tv_buf_s)
+            else:
+                max_len = len(v_buf_bit)
             max_len -= max_len % num_elecs**2
 
             # write data to .csv file

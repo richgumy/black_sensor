@@ -1,80 +1,137 @@
 /*
-FILE: main.c
-PROJECT: PCB MUX
-AUTHOR: R Ellingham
-DATE MODIFIED: May 2023
-PROGRAM DESC: Code to multiplex a current source and voltage measurements for 
-Electrical Impedance Tomography using an adjacent electrode current injection pattern. 
-Using an ESP32 to send SPI commands to four multiplexers.
+
+ERT program!
+
+The PCB firmware is all written in C for the ESP32-WROOM module. The firmware applies an electrode pattern to the electrodes and sends measurement data via the USB-UART serial connection. The basic electrode drive process is:
+
+1. Apply current to 2 electrodes
+2. Measure voltage across 16 electrode pairs
+3. Send voltage measurement data via serial
+4. Iterate to next set of current electrodes.
+5. Back to step 1.
+
 */
-
-#include <inttypes.h>
-#include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <inttypes.h>
 #include <sys/time.h>
+#include <math.h>
 
-#include "driver/gpio.h"
-#include <driver/spi_master.h>
-#include <esp_log.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/uart.h"
+#include "driver/gpio.h"
+#include <sys/time.h>
 
+#include <driver/spi_master.h>
+#include <esp_log.h>
+
+#include "sdkconfig.h"
+
+#include "driver/uart.h"
 
 // Define all UART intr realted params
 static const char *TAG = "uart_events";
-
 #define EX_UART_NUM UART_NUM_0
 #define BUF_SIZE (1024)
 #define RD_BUF_SIZE (BUF_SIZE)
-
 static QueueHandle_t uart0_queue;
 
-// Electrode globals
-#define NUM_ELECS 16 // Number of electrodes in ERT setup
-static uint8_t isnk_elec = 1;
-static uint8_t isrc_elec = 0;
-static uint8_t vn_elec = 0;
-static uint8_t vp_elec = 1;
-static uint8_t reading_count = 0;
 
-// MUX GPIO
-#define EN_MUX_ALL 4
-#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<EN_MUX_ALL))
+#define NUM_ELECS 16 // Number of electrodes in ERT setupd
 
-#ifdef CONFIG_IDF_TARGET_ESP32
-#   define SPI_HOST_ID    HSPI_HOST
-#   define MUX_CIPO 18
-#    define MUX_COPI 23
-#    define MUX_CLK  19
-#    define MUX_CS   13
+// ERT modes
+#define STANDBY -1
+#define CALIBRATE 0
+#define ADJACENT 1
+#define ADJACENT_SE 2
+#define PSEUDO_POLAR 3
+#define PP_PP 4 // See paper "A Quantitative Evaluation of Drive Pattern Selection for Optimizing EIT-Based Stretchable Sensors - Russo et al."
 
-// NOT TESTED WITH THE FOLLOWING ESP VARIANTS!!
-#elif defined CONFIG_IDF_TARGET_ESP32S2
-#  define SPI_HOST_ID    SPI2_HOST
+static const uint8_t ert_mode = ADJACENT; // <- SET ELECTRODE DRIVE PATTERN MODE HERE //
 
-#  define MUX_CIPO 37
-#  define MUX_COPI 35
-#  define MUX_CLK  36
-#  define MUX_CS   34
-#elif defined CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C2
-#  define SPI_HOST_ID    SPI2_HOST
+// IO
+#define LED 21
+#define SW_1 35
+#define SW_2 15
 
-#  define MUX_CIPO 2
-#  define MUX_COPI 7
-#  define MUX_CLK  6
-#  define MUX_CS   10
+// MUX
+#define MUX_EN 32
+#define MUX_CS_PIN 5
 
-#elif CONFIG_IDF_TARGET_ESP32S3
-#  define SPI_HOST_ID    SPI2_HOST
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<LED) | (1ULL<<MUX_EN))
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<SW_1) | (1ULL<<SW_2))
 
-#  define MUX_CIPO 13
-#  define MUX_COPI 11
-#  define MUX_CLK  12
-#  define MUX_CS   10
-#endif
+// ADC
+#define ADC_CS_PIN 27
+#define N_ADC_SAMPLES 1         // set ADC averaging buffer size
+
+// Digipot
+#define DIGPOT_CS 4
+
+// Electrodes
+static int8_t cycle_dir = 1; // Increment through electrode values (0 is decrement)
+static uint8_t isrc_elec;
+static uint8_t isnk_elec;
+static uint8_t vp_elec;
+static uint8_t vn_elec;
+
+
+// Electrical measurement structures
+struct Vmeas {
+    uint8_t vp_elec;
+    uint8_t vn_elec;
+    uint16_t voltage;
+};
+struct Cycle_meas {
+    uint8_t isrc_elec;
+    uint8_t isnk_elec;
+    struct Vmeas vm[NUM_ELECS];
+};
+
+void init_ERT_mode (void) {
+    if (ert_mode == STANDBY){
+        // printf("MODE = STANDBY\n");
+    }
+    else if (ert_mode == ADJACENT){
+        isrc_elec = 1;
+        isnk_elec = 0;
+        vp_elec = 0;
+        vn_elec = 1;
+        // printf("MODE = ADJACENT\n");
+    }
+    else if (ert_mode == ADJACENT_SE){
+        isrc_elec = 1;
+        isnk_elec = 0;
+        vp_elec = 0;
+        vn_elec = 0;
+        // printf("MODE = ADJACENT SINGLE ENDED\n");
+    }
+    else if (ert_mode == CALIBRATE){
+        isrc_elec = 1;
+        isnk_elec = 0;
+        vp_elec = 0;
+        vn_elec = 1;
+        // printf("MODE = CALIBRATE\n");
+    }
+    else if (ert_mode == PSEUDO_POLAR){
+        isrc_elec = 0;
+        isnk_elec = 7;
+        vp_elec = 0;
+        vn_elec = 1;
+        // printf("MODE = PSEUDO_POLAR\n");
+    }
+    else if (ert_mode == PP_PP){
+        isrc_elec = 0;
+        isnk_elec = 7;
+        vp_elec = 0;
+        vn_elec = 7;
+        // printf("MODE = PP_PP\n");
+    }
+    else {
+        printf("INVALID ERT MODE!\n");
+    }
+}
 
 void setup_all_gpio() {
     // output pins
@@ -91,20 +148,43 @@ void setup_all_gpio() {
     o_conf.pull_up_en = 0;
     //configure GPIO with the given settings
     gpio_config(&o_conf);
+
+    // input pins
+    gpio_config_t i_conf;
+    //disable interrupt
+    i_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    i_conf.mode = GPIO_MODE_INPUT;
+    //bit mask of the pins that you want to set
+    i_conf.pin_bit_mask = GPIO_INPUT_PIN_SEL;
+    //disable pull-down mode
+    i_conf.pull_down_en = 0;
+    //disable pull-up mode
+    i_conf.pull_up_en = 1;
+    //configure GPIO with the given settings
+    gpio_config(&i_conf);
 }
 
-void spi_config_init(void) {
+void send_spi_cmd_init(void) {
 	spi_bus_config_t bus_config;
     memset(&bus_config, 0, sizeof(spi_bus_config_t));
-	bus_config.sclk_io_num = MUX_CLK;
-	bus_config.mosi_io_num = MUX_COPI;
-	bus_config.miso_io_num = MUX_CIPO; // Not used
+	bus_config.sclk_io_num = 14; // CLK
+	bus_config.mosi_io_num = 13; // MOSI
+	bus_config.miso_io_num = 12; // MISO
 	bus_config.quadwp_io_num = -1; // Not used
 	bus_config.quadhd_io_num = -1; // Not used
-    spi_bus_initialize(SPI_HOST_ID, &bus_config, 1);
+
+    spi_bus_initialize(HSPI_HOST, &bus_config, 1);
 }
 
 void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
+         
+    // ////// TIMING CODE START ///////
+    // struct timeval tv_I;
+    // gettimeofday(&tv_I, NULL);
+    // int64_t time_us_I = (int64_t)tv_I.tv_sec * 1000000L + (int64_t)tv_I.tv_usec;
+    // ////////////////////////////////
+
     uint8_t data_len = sizeof(data);
 
 	spi_device_handle_t handle;
@@ -117,15 +197,16 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 	dev_config.duty_cycle_pos = 0;
 	dev_config.cs_ena_posttrans = 0;
 	dev_config.cs_ena_pretrans = 0;
-	dev_config.clock_speed_hz = 700000;
+	dev_config.clock_speed_hz = 1000000;
+    dev_config.clock_source = SPI_CLK_SRC_DEFAULT;
     dev_config.input_delay_ns = 0;
 	dev_config.spics_io_num = CS_pin;
 	dev_config.flags = 0;
 	dev_config.queue_size = 1;
-	dev_config.pre_cb = 0;
-	dev_config.post_cb = 0;
+	dev_config.pre_cb = NULL;
+	dev_config.post_cb = NULL;
 
-    spi_bus_add_device(SPI_HOST_ID, &dev_config, &handle);
+    spi_bus_add_device(HSPI_HOST, &dev_config, &handle);
 
 	spi_transaction_t trans_desc;
 	trans_desc.addr = 0;
@@ -136,18 +217,46 @@ void send_spi_cmd(uint8_t data[], uint8_t CS_pin) {
 	trans_desc.tx_buffer = data;
 	trans_desc.rx_buffer = data;
 
-    spi_device_transmit(handle, &trans_desc);
+    esp_err_t ret = spi_device_transmit(handle, &trans_desc);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "SPI transmit failed: %s", esp_err_to_name(ret));
+    }
 
     spi_bus_remove_device(handle);
+    // ////// TIMING CODE FINISH //////
+    // struct timeval tv_F;
+    // gettimeofday(&tv_F, NULL);
+    // int64_t time_us_F = (int64_t)tv_F.tv_sec * 1000000L + (int64_t)tv_F.tv_usec;
+    // int64_t tv_D = time_us_F - time_us_I;
+    // printf("%lld\n", tv_D);
+    // ////////////////////////////////
+    // spi_bus_free(HSPI_HOST);
+}
 
-    // spi_bus_free(SPI_HOST_ID);
+uint32_t conv_adc_readingLTC1864L(uint8_t data[]) {
+    // Converts arbitrary analogue unit to readable mV value
+    // uint32_t conv_offset = 0;//32533; // Calibrate for each board (i.e. V_GND)
+    // uint32_t conv_scale = 65536;
+    uint32_t conv_data = 0;
+
+    for (int i=0;i<2;i++){
+        conv_data = (conv_data << 8) + data[i];      
+    }
+
+    // conv_data = conv_data * 5 * 10000 / conv_scale ; // mV conversion
+
+    return conv_data;
+}
+
+uint32_t to_resistance(uint32_t current_src_uA, uint32_t v_data_mV) {
+    return v_data_mV * 1000 / current_src_uA;
 }
 
 uint8_t sel_mux_frmt(uint8_t elec_1, uint8_t elec_2) {
     // Inputs elec_1 and elec2 get turned into a value in the format 0x(elec_1)(elec_2)
-    if ((elec_1 > 15) || (elec_2 > 15)){
-        printf("MUX array index out of bounds (i.e. %d or %d)\n", elec_1, elec_2);
-    }
+    // if ((elec_1 > 15) || (elec_2 > 15)){
+    //     printf("MUX array index out of bounds (i.e. %d or %d)\n", elec_1, elec_2);
+    // }
     uint8_t data;
     data = (elec_1 << 4) + elec_2;
     return data;
@@ -166,150 +275,170 @@ uint8_t iter_elec(int8_t increment, uint8_t elec_val, uint8_t num_elecs) {
     }
 }
 
-void iter_elecs_adj(void){
-    // Iterates electrode pattern for adjacent EIT electrode drive sequence
-    reading_count++;
-    isnk_elec = iter_elec(1,isnk_elec,NUM_ELECS);
-    isrc_elec = iter_elec(1,isrc_elec,NUM_ELECS);
-    if (reading_count == NUM_ELECS) {
-        reading_count = 0;
-        vn_elec = iter_elec(1,vn_elec,NUM_ELECS);
-        vp_elec = iter_elec(1,vp_elec,NUM_ELECS);
-    }
-    uint8_t data[2] = {sel_mux_frmt(isnk_elec, isrc_elec),sel_mux_frmt(vn_elec,vp_elec)};
-    send_spi_cmd(data, MUX_CS);
-}
-
-static void uart_event_task(void *pvParameters)
+void print_vmeas_csv_frmt(struct Cycle_meas measurements, uint8_t num_elecs)
+// Sends voltage measurement bytes via UART. 
+// TODO: should be done frame by frame to ensure each frame is collected in the smallest time possible.
 {
-    /*
-    Command prompt for the PCB_MUX setup.
-    Cmds sent over UART:
-    i = iterate electrodes
-    g = get current electrode state
-    c = get iteration (reading) count
-    */ 
-    uart_event_t event;
-    // size_t buffered_size;
-    uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
-    for(;;) {
-        //Waiting for UART event.
-        if(xQueueReceive(uart0_queue, (void * )&event, (TickType_t)portMAX_DELAY)) {
-            bzero(dtmp, RD_BUF_SIZE);
-            ESP_LOGI(TAG, "uart[%d] event:", EX_UART_NUM);
-            switch(event.type) {
-                //Event of UART receving data
-                /*We'd better handler data event fast, there would be much more data events than
-                other types of events. If we take too much time on data event, the queue might
-                be full.*/
-                case UART_DATA:
-                    ESP_LOGI(TAG, "\n[UART DATA SZ]: %d", event.size);
-                    uart_read_bytes(EX_UART_NUM, dtmp, event.size, portMAX_DELAY);
-                    ESP_LOGI(TAG, "[DATA EVT]: %c", (char)(dtmp[0]));
-                    uart_write_bytes(EX_UART_NUM, (const char*) dtmp, event.size);
-                    if (dtmp[0] == (uint8_t)('i')) {
-                        // ITERATE ELECTRODE PATTERN
-                        iter_elecs_adj();    
-                        ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
-                    }
-                    else if (dtmp[0] == (uint8_t)('g')) {
-                        // GET ELECTRODE STATE
-                        printf("isrc%d,isnk%d,vn%d,vp%d\n", isnk_elec, isrc_elec, vn_elec, vp_elec);
-                    }
-                    else if (dtmp[0] == (uint8_t)('c')) {
-                        // GET ITERATION COUNT
-                        ESP_LOGI(TAG, "[ITERATION COUNT]: %d", reading_count);
-                        printf("%d", reading_count);
-                    }
-                    else {
-                        ESP_LOGI(TAG, "[UNKNOWN DATA]: %c", dtmp[0]);
-                    }
-                    break;
-                //Event of HW FIFO overflow detected
-                case UART_FIFO_OVF:
-                    ESP_LOGI(TAG, "hw fifo overflow");
-                    // If fifo overflow happened, you should consider adding flow control for your application.
-                    // The ISR has already reset the rx FIFO,
-                    // As an example, we directly flush the rx buffer here in order to read more data.
-                    uart_flush_input(EX_UART_NUM);
-                    xQueueReset(uart0_queue);
-                    break;
-                //Event of UART ring buffer full
-                case UART_BUFFER_FULL:
-                    ESP_LOGI(TAG, "ring buffer full");
-                    // If buffer full happened, you should consider encreasing your buffer size
-                    // As an example, we directly flush the rx buffer here in order to read more data.
-                    uart_flush_input(EX_UART_NUM);
-                    xQueueReset(uart0_queue);
-                    break;
-                //Event of UART RX break detected
-                case UART_BREAK:
-                    ESP_LOGI(TAG, "uart rx break");
-                    break;
-                //Event of UART parity check error
-                case UART_PARITY_ERR:
-                    ESP_LOGI(TAG, "uart parity error");
-                    break;
-                //Event of UART frame error
-                case UART_FRAME_ERR:
-                    ESP_LOGI(TAG, "uart frame error");
-                    break;
-                //Others
-                default:
-                    ESP_LOGI(TAG, "uart event type: %d", event.type);
-                    break;
-            }
-        }
+    // Print electrode measurements           
+    for (int i=0; i<num_elecs; i++){
+        // printf("%u\r",measurements.vm[i].voltage);
+        uint8_t dtmp[2];
+        dtmp[0] = (uint8_t) (measurements.vm[i].voltage & 0xFF);
+        dtmp[1] = (uint8_t) (measurements.vm[i].voltage >> 8);
+        uart_write_bytes(EX_UART_NUM, (const char*) dtmp, sizeof(dtmp));
+        char* return_car_char = "\r";
+        uart_write_bytes(EX_UART_NUM, (const char*) return_car_char, strlen(return_car_char));
+
+        // free(dtmp);
+        // dtmp = NULL;
     }
-    free(dtmp);
-    dtmp = NULL;
-    vTaskDelete(NULL);
+    // printf("\n");
 }
 
+uint32_t read_ADC(uint8_t* spi_read_ADC)
+{
+    uint32_t spi_read = 0;
+    uint32_t spi_read_avg = 0;
+    // send_spi_cmd(spi_read_ADC, ADC_CS_PIN); // Discard ADC reading from previous cycle
+    for (int i = 0; i < N_ADC_SAMPLES; i++) {
+        send_spi_cmd(spi_read_ADC, ADC_CS_PIN); // Send SPI cmd to read ADC and store value in 'spi_read_ADC'
+        spi_read = conv_adc_readingLTC1864L(spi_read_ADC);
+        spi_read_avg += spi_read;
+    }
+    spi_read_avg /= N_ADC_SAMPLES;
+    return spi_read_avg;
+}
 
 void app_main(void)
-{
-    // setup UART interrupt
-    esp_log_level_set(TAG, ESP_LOG_NONE); // en/disable log interrupt related messages
+{   
+    /*
+    SETUP
+    */
+    init_ERT_mode();
 
-    /* Configure parameters of an UART driver,
-     * communication pins and install the driver */
+    //Configure GPIO
+    setup_all_gpio();
+    gpio_set_level(MUX_EN, 1);
+
+    ////// UART SPECIFIC CODE ////
     uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = 1400000,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
+
     //Install UART driver, and get the queue.
     uart_driver_install(EX_UART_NUM, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart0_queue, 0);
     uart_param_config(EX_UART_NUM, &uart_config);
-
     //Set UART log level
-    esp_log_level_set(TAG, ESP_LOG_INFO);
+    // esp_log_level_set(TAG, ESP_LOG_INFO);
     //Set UART pins (using UART0 default pins ie no changes.)
     uart_set_pin(EX_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    ////// UART SPECIFIC CODE ////
 
-    // setup GPIO
-    setup_all_gpio();
-    uint8_t EN_ALL_MUX = 1;
-    gpio_set_level(EN_MUX_ALL, EN_ALL_MUX);
-
-    // setup SPI for MUX coms
-    spi_config_init();
-    
-    // electrode setup
+    // Assign initial mux electrode values
     uint8_t i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
     uint8_t v_elecs = sel_mux_frmt(vn_elec, vp_elec);
-    uint8_t elec_data[2] = {i_elecs, v_elecs};
-    send_spi_cmd(elec_data, MUX_CS);
+    uint8_t elec_index[2] = {i_elecs, v_elecs};
 
-    // create a UART triggered task
-    xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL, 12, NULL);
+    // SPI read ADC
+    send_spi_cmd_init();
+    uint8_t spi_read_ADC_buf[2]; // [2] bytes for 16bit ADC
 
-	while(1) {
-        vTaskDelay(100);
-        ESP_LOGI(TAG, "loop");
-	}
+    /// UART SPEED TEST ///
+    // char* frame_end_msg = "A\r";
+    // uart_write_bytes(EX_UART_NUM, (const char*) frame_end_msg, strlen(frame_end_msg));
+    // int i = 0; 
+    // while(1){
+    //     char* frame_msg = "b\r";
+    //     uart_write_bytes(EX_UART_NUM, (const char*) frame_msg, strlen(frame_msg));
+    //     i++;
+    //     if (!(i % 256)){
+    //         uart_write_bytes(EX_UART_NUM, (const char*) frame_end_msg, strlen(frame_end_msg));
+    //         }
+    // }
+    /// UART SPEED TEST ///
+
+    /*
+    MAIN LOOP
+    Continuously cycles through electrode pattern mode
+    */
+    while (1) {
+        while (ert_mode != STANDBY){
+            // Store all voltage measurements and electrodes used in cycle_read
+            struct Cycle_meas cycle_read;
+            cycle_read.isrc_elec = isrc_elec;
+            cycle_read.isnk_elec = isnk_elec;
+
+            // if (!cycle_read.isnk_elec){em
+            //     printf("A\n"); // Break in between full ERT measurement
+            // }
+
+            // Cycle through each voltage measurement
+            for (int elec_iter=0 ; elec_iter<NUM_ELECS ; elec_iter++)
+            {
+                // Store data in v_read
+                struct Vmeas v_read;
+                v_read.vp_elec = vp_elec;
+                v_read.vn_elec = vn_elec;
+
+                 // Send SPI mux cmd
+                send_spi_cmd(elec_index, MUX_CS_PIN);
+           
+                // ADC SPI read
+                int32_t spi_read_avg = (int32_t)read_ADC(spi_read_ADC_buf);
+
+                int16_t spi_read_avg_16b = spi_read_avg;
+                v_read.voltage = spi_read_avg_16b;
+
+                cycle_read.vm[elec_iter] = v_read;
+
+                // Cycle through voltage measurement electrodes
+                vp_elec = iter_elec(cycle_dir, vp_elec, NUM_ELECS);
+                if (ert_mode == ADJACENT){
+                    vn_elec = iter_elec(cycle_dir, vn_elec, NUM_ELECS);
+                }
+                else if (ert_mode == ADJACENT_SE) {
+                    vn_elec = isnk_elec; // maintain a single ended measurement
+                }
+                v_elecs = sel_mux_frmt(vn_elec, vp_elec);
+                elec_index[1] = v_elecs;
+                // vTaskDelay(1 / portTICK_PERIOD_MS);
+
+                if (ert_mode == CALIBRATE) {
+                    // printf("%u\n",isrc_elec);
+                    for (int i=0; i < 0; i++){
+                        vTaskDelay(1000 / portTICK_PERIOD_MS);
+                        // printf("..%u\n",10-i);
+                    }
+                    // Calibration mode: measure impedance between each electrode
+                    isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
+                    isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
+                }
+                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+                elec_index[0] = i_elecs;
+
+                // vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+
+            print_vmeas_csv_frmt(cycle_read, NUM_ELECS);
+
+            if (isrc_elec == 0) {
+                char* frame_end_msg = "A\r";
+                uart_write_bytes(EX_UART_NUM, (const char*) frame_end_msg, strlen(frame_end_msg));
+            }
+            
+            if (ert_mode == ADJACENT || ert_mode == ADJACENT_SE) {
+                // Adjacent mode: cycle through current source electrodes
+                isnk_elec = iter_elec(cycle_dir, isnk_elec, NUM_ELECS);
+                isrc_elec = iter_elec(cycle_dir, isrc_elec, NUM_ELECS);
+                i_elecs = sel_mux_frmt(isnk_elec, isrc_elec);
+                elec_index[0] = i_elecs;
+            }           
+        }
+        gpio_set_level(LED, 1);
+    }
 }
